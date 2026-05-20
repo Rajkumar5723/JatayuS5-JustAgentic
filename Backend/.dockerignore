@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.log
+*.out.log
+*.err.log
+storage/
+uploads/
+.venv/
+venv/
+mypy_cache/
+ruff_cache/

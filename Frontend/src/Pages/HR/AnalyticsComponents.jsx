@@ -573,7 +573,7 @@ import {
     FiActivity, FiAlertCircle, FiTrendingUp, FiBook, FiMapPin,
     FiBriefcase, FiAward, FiExternalLink
 } from "react-icons/fi";
-import "./AnalyticsComponents.css";
+import "./Analyticscomponents.css";
 
 const ORANGE = "#ff4400";
 const PALETTE = ["#ff4400", "#ff6633", "#ff8855", "#ffaa77", "#cc3700", "#b33000", "#ff2200", "#ff9966", "#dd5500", "#ff7744"];
@@ -1158,7 +1158,6 @@ export function LinkedInAnalytics({ score, reasoning, candidate, linkedinUrl }) 
         </div>
     );
 }
-
 
 
 

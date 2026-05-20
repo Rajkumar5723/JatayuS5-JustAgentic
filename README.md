@@ -14,23 +14,29 @@ Hiresy is an AI-assisted hiring workflow platform for job posting, candidate app
 
 ## Architecture
 
-The app runs as a multi-service stack:
+The app runs as a six-service stack:
 
-- `Frontend` on port `5173`
-- `main-api` on port `8000`
-- `evaluator` on port `8001`
-- `shortlisting-test` on port `8002`
-- `coding-test` on port `8003`
-- `live-hr` on port `8004`
+- `frontend`
+- `main-api`
+- `evaluator`
+- `shortlisting-test`
+- `coding-test`
+- `live-hr`
+
+The repo is a monorepo with two deploy roots:
+
+- `Frontend/` for the React app
+- `Backend/` for all Python services
 
 ## Prerequisites
 
 - Python 3.11+
 - Node.js 20+
+- Docker if you want to build the Railway images locally
 - PostgreSQL on AWS RDS
 - AWS S3 bucket for documents and evidence
 - Redis if you use the configured Celery URLs
-- Tesseract OCR installed if you want scanned-image OCR locally
+- Tesseract OCR if you want scanned-image OCR locally outside Docker
 
 ## Environment setup
 
@@ -39,11 +45,14 @@ The app runs as a multi-service stack:
    - `AWS_DATABASE_URL`
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_REGION`
    - `AWS_S3_BUCKET`
    - `S3_EVIDENCE_BUCKET`
    - `GROQ_API_KEY`
    - `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
    - `JAAS_APP_ID`
+   - `LI_CLIENT_ID`, `LI_CLIENT_SECRET`, `LI_REDIRECT_URI`, `LI_SCOPE`
+   - `QR_JWT_SECRET_KEY`
 3. Keep `DATABASE_MODE=aws`.
 
 The active runtime uses AWS RDS through `AWS_DATABASE_URL`.
@@ -52,16 +61,9 @@ The active runtime uses AWS RDS through `AWS_DATABASE_URL`.
 
 ### Backend
 
-Install Python dependencies:
-
 ```powershell
 cd Backend
 pip install -r requirements.txt
-```
-
-Seed the default HR user:
-
-```powershell
 python seed_hr_user.py
 ```
 
@@ -99,6 +101,32 @@ npm run dev -- --host 0.0.0.0 --port 5173
 - Verify evidence appears in the HR candidate workflow
 - Complete BGV, offer, approval, and onboarding flow
 
+## Docker builds
+
+Build the backend image from the `Backend` root:
+
+```powershell
+docker build -f Backend/Dockerfile Backend -t hiresy-backend
+```
+
+Build the frontend image from the `Frontend` root:
+
+```powershell
+docker build -f Frontend/Dockerfile Frontend -t hiresy-frontend
+```
+
+Example backend service run with a Railway-style command:
+
+```powershell
+docker run --rm -p 8000:8000 hiresy-backend sh -c "uvicorn services.main_api.app:app --host 0.0.0.0 --port 8000"
+```
+
+Example frontend run:
+
+```powershell
+docker run --rm -p 3000:3000 hiresy-frontend
+```
+
 ## Ngrok testing
 
 Run the local stack first, then expose the frontend:
@@ -124,31 +152,48 @@ Because Vite proxies `/api`, `/test-api`, `/coding-api`, and `/livehr-api`, one 
 Before pushing publicly:
 
 - confirm `.env` is not committed
-- confirm AWS, SMTP, LinkedIn, and GitHub secrets are rotated if they were ever exposed
+- confirm AWS, SMTP, LinkedIn, GitHub, and Groq secrets are rotated if they were ever exposed
 - remove local logs, caches, generated uploads, and test artifacts
 - keep `.env.example` as the only tracked env template
 
 ## Push to GitHub
-
-If the repo is already initialized, use the existing repo instead of re-running `git init`.
 
 Typical flow:
 
 ```powershell
 git status
 git add .
-git commit -m "Prepare AWS-only public release"
-git remote set-url origin https://github.com/Rajkumar5723/JatayuS5-JustAgentic.git
+git commit -m "Add Railway Docker deployment support"
 git push -u origin main
 ```
 
-## Railway deployment after GitHub push
+## Railway Docker monorepo deployment
 
-Deploy this as multiple Railway services, not as a single merged backend.
+Deploy this as six Railway services from the same GitHub repo. Do not collapse the stack into one service.
 
-### 1. Create projects/services
+### Service root directories
 
-Create six Railway services from the same GitHub repo:
+Use these exact root directories in Railway:
+
+| Service | Root Directory |
+|---|---|
+| `frontend` | `Frontend` |
+| `main-api` | `Backend` |
+| `evaluator` | `Backend` |
+| `shortlisting-test` | `Backend` |
+| `coding-test` | `Backend` |
+| `live-hr` | `Backend` |
+
+Each service should use Dockerfile auto-detection:
+
+- `Frontend/Dockerfile` for the frontend service
+- `Backend/Dockerfile` for every backend service
+
+Do not set a Custom Build Command. Railway should use the Dockerfile at the root of the selected deploy directory.
+
+### Railway service names
+
+Name the services exactly:
 
 - `frontend`
 - `main-api`
@@ -157,18 +202,43 @@ Create six Railway services from the same GitHub repo:
 - `coding-test`
 - `live-hr`
 
-### 2. Configure service start commands
+These names matter because backend private-network URLs will use them.
 
-Use these start commands:
+### Backend start commands
 
-- `main-api`: `uvicorn services.main_api.app:app --host 0.0.0.0 --port $PORT`
-- `evaluator`: `uvicorn services.evaluator.app:app --host 0.0.0.0 --port $PORT`
-- `shortlisting-test`: `uvicorn services.shortlisting_test.app:app --host 0.0.0.0 --port $PORT`
-- `coding-test`: `uvicorn services.coding_test.app:app --host 0.0.0.0 --port $PORT`
-- `live-hr`: `uvicorn services.live_hr.app:app --host 0.0.0.0 --port $PORT`
-- `frontend`: build with Vite and serve the generated assets with your chosen static host pattern
+Set a Custom Start Command on each backend service:
 
-### 3. Set backend env vars on every backend service
+- `main-api`
+  - `sh -c "uvicorn services.main_api.app:app --host 0.0.0.0 --port ${PORT}"`
+- `evaluator`
+  - `sh -c "uvicorn services.evaluator.app:app --host 0.0.0.0 --port ${PORT}"`
+- `shortlisting-test`
+  - `sh -c "uvicorn services.shortlisting_test.app:app --host 0.0.0.0 --port ${PORT}"`
+- `coding-test`
+  - `sh -c "uvicorn services.coding_test.app:app --host 0.0.0.0 --port ${PORT}"`
+- `live-hr`
+  - `sh -c "uvicorn services.live_hr.app:app --host 0.0.0.0 --port ${PORT}"`
+
+Do not remove `sh -c`. Railway Docker start commands need a shell wrapper for `${PORT}` expansion.
+
+Leave the frontend Custom Start Command empty and use the Docker `CMD`.
+
+### Healthchecks
+
+Configure these healthcheck paths:
+
+| Service | Healthcheck |
+|---|---|
+| `frontend` | `/` |
+| `main-api` | `/health` |
+| `evaluator` | `/health` |
+| `shortlisting-test` | `/health` |
+| `coding-test` | `/health` |
+| `live-hr` | `/health` |
+
+### Backend variables
+
+Set these on every backend service:
 
 - `DATABASE_MODE=aws`
 - `AWS_DATABASE_URL`
@@ -178,43 +248,109 @@ Use these start commands:
 - `AWS_S3_BUCKET`
 - `S3_EVIDENCE_BUCKET`
 - `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `GROQ_MODEL_VISION`
+- `GROQ_MODEL_AUDIO`
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
 - `JAAS_APP_ID`
+- `LI_CLIENT_ID`
+- `LI_CLIENT_SECRET`
+- `LI_REDIRECT_URI`
+- `LI_SCOPE`
+- `QR_JWT_SECRET_KEY`
 - `SHORTLIST_MIN_SCORE`
 
-Also set service-to-service URLs:
+Set these public URL values on every backend service:
 
-- `MAIN_API_URL=https://<main-api-domain>`
-- `EVAL_API_URL=https://<evaluator-domain>`
-- `TEST_API_URL=https://<shortlisting-domain>`
-- `CODING_API_URL=https://<coding-domain>`
-- `LIVEHR_API_URL=https://<live-hr-domain>`
-
-Set:
-
+- `FRONTEND_URL=https://<frontend-domain>`
 - `PUBLIC_FRONTEND_URL=https://<frontend-domain>`
 - `PUBLIC_MAIN_API_URL=https://<main-api-domain>`
 
-### 4. Set frontend env vars
+### Private networking values
+
+Use Railway private networking for backend-to-backend communication:
+
+- `MAIN_API_URL=http://main-api.railway.internal`
+- `EVAL_API_URL=http://evaluator.railway.internal`
+- `TEST_API_URL=http://shortlisting-test.railway.internal`
+- `CODING_API_URL=http://coding-test.railway.internal`
+- `LIVEHR_API_URL=http://live-hr.railway.internal`
+
+### Frontend variables
+
+Set these on the `frontend` service:
 
 - `VITE_MAIN_API_BASE=https://<main-api-domain>`
-- `VITE_TEST_API_BASE=https://<shortlisting-domain>`
-- `VITE_CODING_API_BASE=https://<coding-domain>`
+- `VITE_TEST_API_BASE=https://<shortlisting-test-domain>`
+- `VITE_CODING_API_BASE=https://<coding-test-domain>`
 - `VITE_LIVEHR_API_BASE=https://<live-hr-domain>`
 - `VITE_LIVEHR_WS_BASE=wss://<live-hr-domain>/livehr/ws`
 
-### 5. Final Railway checks
+The production frontend must use these public URLs. It must not rely on the Vite dev proxy.
 
+### Watch paths
+
+Use Watch Paths so unrelated changes do not rebuild every service:
+
+- `main-api`
+  - `Backend/core/**`
+  - `Backend/services/main_api/**`
+  - `Backend/requirements.txt`
+- `evaluator`
+  - `Backend/core/**`
+  - `Backend/services/evaluator/**`
+  - `Backend/requirements.txt`
+- `shortlisting-test`
+  - `Backend/core/**`
+  - `Backend/services/shortlisting_test/**`
+  - `Backend/requirements.txt`
+- `coding-test`
+  - `Backend/core/**`
+  - `Backend/services/coding_test/**`
+  - `Backend/requirements.txt`
+- `live-hr`
+  - `Backend/core/**`
+  - `Backend/services/live_hr/**`
+  - `Backend/requirements.txt`
+- `frontend`
+  - `Frontend/**`
+
+### Railway deploy steps after push
+
+1. Push the repo to GitHub.
+2. In Railway, create or connect six services from the same repo.
+3. Set the root directory for each service exactly as shown above.
+4. Let Railway detect the Dockerfile from that root directory.
+5. Configure each backend Custom Start Command.
+6. Configure healthcheck paths.
+7. Add backend shared secrets and URL variables.
+8. Add frontend `VITE_*` variables.
+9. Deploy all services.
+10. Seed the default HR user once in a backend shell if your database is empty:
+
+```powershell
+python seed_hr_user.py
+```
+
+## Railway smoke checklist
+
+- `main-api`, `evaluator`, `shortlisting-test`, `coding-test`, and `live-hr` return `200` on `/health`
+- `frontend` returns `200` on `/`
 - login works against AWS RDS
-- candidate links open from public Railway domains
-- S3 document previews/downloads work
-- QR room scan and test gating work over public HTTPS
+- candidate links use public Railway domains
+- main API can reach internal backend services over `*.railway.internal`
+- MCQ and Aptitude public links open correctly
+- QR room scan gate blocks test start until complete
+- coding and live HR routes open from public URLs
+- S3-backed document preview and download works
 - offer portal and signed PDF download work
 
 ## Known operational notes
 
-- If scanned-document OCR is required locally, install Tesseract first.
-- Free ngrok URLs change after restart, so refresh `PUBLIC_FRONTEND_URL` when needed.
-- `Group Discussion` is intentionally UI-only and will not create a runnable test session.
+- If a backend service name differs from this README, internal `*.railway.internal` URLs must be updated to match.
+- If a backend Custom Start Command omits `sh -c`, `${PORT}` will not expand.
+- If `VITE_*` variables are missing, the frontend falls back to local proxy paths and breaks in production.
+- Free ngrok URLs change after restart, so refresh `PUBLIC_FRONTEND_URL` when needed during local testing.
+- `Group Discussion` is intentionally UI-only and does not create a runnable test session.

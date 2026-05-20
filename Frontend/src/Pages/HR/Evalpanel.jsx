@@ -212,7 +212,7 @@ import {
     RadialBarChart, RadialBar
 } from "recharts";
 import { GitHubAnalytics, LeetCodeAnalytics, LinkedInAnalytics } from "./AnalyticsComponents";
-import "./EvalPanel.css";
+import "./Evalpanel.css";
 
 const PALETTE = ["#6b8800", "#ff4400", "#0073ff", "#7445ff", "#00a892", "#f59e0b"];
 
