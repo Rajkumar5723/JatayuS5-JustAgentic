@@ -1,0 +1,66 @@
+@keyframes slidedown {
+    0% {
+        transform: translateY(-100%);
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.navbar-main {
+    padding: 1em;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    opacity: 0;
+    animation: slidedown 1.3s forwards 2.4s ;
+}
+
+.navbar-logo {
+    height: 40px;
+}
+
+.nav-menu {
+    margin-left: auto;
+    padding: 0.5em 1.5em;
+    background: linear-gradient(to left, #49494920, #63636322);
+    backdrop-filter: blur(10px);
+    border-radius: 7px;
+    display: flex;
+    gap: 2.5em;
+    outline: 2px solid #a4a4a424;
+}
+
+.menu-items {
+    letter-spacing: -0.4px;
+    color: rgba(255, 255, 255, 0.801);
+    font-weight: 300;
+    text-decoration: none;
+    transition-duration: 0.5s;
+}
+
+.menu-items:hover {
+    color: #ff8036;
+}
+
+.menu-getstared {
+    padding: 0.5em 1.5em;
+    background: linear-gradient(to left, #ff5e00, #3d3d3d84);
+    outline: 2px solid #ff5e0036;
+    backdrop-filter: blur(10px);
+    border-radius: 7px;
+    color: #ffffff;
+    font-weight: 400;
+}
+
+.menu-getstared:hover {
+    background: white;
+    color: #000;
+}

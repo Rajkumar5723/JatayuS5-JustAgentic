@@ -1,0 +1,113 @@
+@keyframes slideup {
+    0% {
+        transform: translateY(10%);
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes blurin {
+    0% {
+        filter: blur(5px);
+        opacity: 0;
+    }
+
+    100% { 
+        filter: blur(0px);
+        opacity: 1;
+    }
+}
+
+.login-main {
+    height: 100vh;
+    width: 100%;
+    background-color: #090909;
+    display: flex;
+
+}
+
+.login-side {
+    height: 100%;
+    width: 60%;
+    background: #000;
+    overflow: hidden;
+    background: url('/login.svg') no-repeat center / cover;
+    display: grid;
+    place-items: center;
+    animation: blurin 1s forwards;
+}
+
+.login-logo {
+    height: 60px;
+}
+
+.login-form-side {
+    height: 100%;
+    width: 40%;
+    padding: 4em;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    opacity: 0;
+    animation: slideup 1.5s forwards;
+}
+
+.login-form {
+    padding: 0 0.5em;
+}
+
+.login-login {
+    color: #ffffff;
+    font-size: xx-large;
+}
+
+.login-sub {
+    color: #ff5e00;
+    margin-bottom: 1.7em;
+}
+
+.login-label {
+    display: block;
+    color: #ffffff;
+    margin-top: 1.3em;
+    margin-bottom: 10px;
+}
+
+.login-input {
+    width: 100%;
+    padding: 1em;
+    background-color: transparent;
+    outline: 2.3px solid #ff5e00d4;
+    border: none;
+    border-radius: 7px;
+    color: white;
+    display: block;
+}
+
+.login-submit {
+    padding: 0.5em;
+    background-color: #ff5e00;
+    outline: none;
+    cursor: pointer;
+    margin-top: 30px;
+    font-size: large;
+    transition-duration: 0.5s;
+}
+
+.login-submit:hover {
+    background-color: #ffffff;
+    color: #ff5e00;
+}
+
+.login-info{
+    padding: 1em;
+    text-align: center;
+    color: red;
+}
+
+.login-info-success {
+    color: #34d17a !important;
+}

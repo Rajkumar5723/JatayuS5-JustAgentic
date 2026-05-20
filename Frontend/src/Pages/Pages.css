@@ -1,0 +1,389 @@
+.landing-main {
+    position: relative;
+    height: 100vh;
+    width: 100%;
+    background: url('/bgt.svg') no-repeat center / cover;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+@keyframes blurin {
+    0% {
+        filter: blur(5px);
+        opacity: 0;
+    }
+
+    100% {
+        filter: blur(0px);
+        opacity: 1;
+    }
+}
+
+@keyframes slidefrmleft {
+    0% {
+        transform: translateX(-20%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slidefrmright {
+    0% {
+        transform: translateX(20%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideup {
+    0% {
+        transform: translateY(100%);
+    }
+
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.landing-sub {
+    color: #ffffff;
+    padding: 0.5em 1.2em;
+    background: linear-gradient(to left, #4747472c, #9090902d);
+    backdrop-filter: blur(10px);
+    border-radius: 100px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+    outline: 2px solid rgba(255, 255, 255, 0.163);
+    margin-bottom: 1em;
+    opacity: 0;
+    animation: blurin 1s forwards 1.3s;
+}
+
+.landing-multiagent-icon {
+    height: 20px;
+}
+
+.landing-head {
+    font-size: 4.5em;
+    font-family: "Instrument Serif", serif;
+    color: #979797;
+    mix-blend-mode: difference;
+    font-style: italic;
+    animation: blurin 1s ease-in;
+}
+
+.landing-description {
+    width: 70%;
+    font-size: 1.5em;
+    text-align: center;
+    color: #e9e9e9;
+    line-height: 1.4em;
+    letter-spacing: -1px;
+    animation: blurin 1s ease-in;
+}
+
+.landing-description-high {
+    font-family: "Instrument Serif", serif;
+    font-size: 1.35em;
+    font-style: italic;
+    color: #e9e9e9;
+    mix-blend-mode: difference;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+.landing-button {
+    display: flex;
+    gap: 1.5em;
+    padding: 1.4em;
+    padding-bottom: 2em;
+}
+
+.landing-access-button {
+    width: 250px;
+    padding: 0.3em;
+    /* background: #ffffff;
+    outline: 3px solid #c247006d;
+    backdrop-filter: blur(10px); */
+    background: white;
+    outline: 3px solid #7171717c;
+    color: #000;
+    color: #000000;
+    text-align: center;
+    border-radius: 7px;
+    cursor: pointer;
+    animation: blurin 1s ease-in;
+    transition-duration: 0.2s;
+    opacity: 0;
+    animation: slidefrmright 1s forwards 0.8s;
+    text-decoration: none;
+}
+
+.landing-access-button:first-child {
+    background: #00000000;
+    outline: 3px solid #ffffff42;
+    color: #ffffff;
+    animation: slidefrmleft 1.2s forwards 0.8s;
+}
+
+.landing-access-button:first-child:hover {
+    background: rgba(208, 208, 208, 0);
+}
+
+.landing-access-button:hover {
+    background-color: #ff5416;
+    outline: 3px solid #c247006d;
+    color: #ffffff;
+}
+
+
+
+
+
+.landing-info-container {
+    position: absolute;
+    bottom: 70px;
+    display: flex;
+    gap: 2em;
+    opacity: 0;
+    animation: slideup 1.3s forwards 2.4s;
+}
+
+.landing-info-inner {
+    max-width: 230px;
+    padding: 0.3em 1em;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.288), rgba(0, 0, 0, 0.259));
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    border-radius: 10px;
+    outline: 2px solid rgba(86, 86, 86, 0.412);
+    color: #ffffff;
+}
+
+.info-percentage {
+    font-size: 2.5em;
+    letter-spacing: -4px;
+}
+
+.info-des-head {
+    line-height: 0.9em;
+    text-wrap: balance;
+}
+
+.info-des-sub {
+    margin-top: 0.4em;
+    font-size: xx-small;
+    line-height: 1.2;
+
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.landing-info-inner-two {
+    max-width: 310px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* ==============================
+   RESPONSIVE — TABLET (max 1024px)
+================================ */
+@media (max-width: 1024px) {
+    .landing-head {
+        font-size: 3.5em;
+        text-align: center;
+        padding: 0 1em;
+    }
+
+    .landing-description {
+        width: 85%;
+        font-size: 1.25em;
+    }
+
+    .landing-info-container {
+        gap: 1em;
+        bottom: 50px;
+    }
+
+    .landing-info-inner {
+        max-width: 200px;
+    }
+
+    .landing-info-inner-two {
+        max-width: 230px;
+    }
+
+    .info-percentage {
+        font-size: 2em;
+        letter-spacing: -3px;
+    }
+}
+
+
+/* ==============================
+   RESPONSIVE — MOBILE (max 768px)
+================================ */
+@media (max-width: 768px) {
+    .landing-main {
+        height: auto;
+        min-height: 100vh;
+        padding: 6em 1.2em 3em;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        gap: 0.8em;
+    }
+
+    .landing-sub {
+        font-size: 0.75em;
+        padding: 0.5em 1em;
+        text-align: center;
+    }
+
+    .landing-head {
+        font-size: 2.6em;
+        padding: 0 0.3em;
+        line-height: 1.1em;
+        text-align: center;
+        letter-spacing: -1px;
+    }
+
+    .landing-description {
+        width: 95%;
+        font-size: 1.05em;
+        letter-spacing: -0.5px;
+        line-height: 1.5em;
+    }
+
+    .landing-button {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.8em;
+        padding: 1em 0 1.5em;
+    }
+
+    .landing-access-button {
+        width: 230px;
+        padding: 0.6em 1em;
+        font-size: 0.95em;
+    }
+
+    /* KEY FIX: remove absolute positioning so it flows below content */
+    .landing-info-container {
+        position: relative;
+        bottom: unset;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.6em;
+        padding: 0;
+        width: 100%;
+        box-sizing: border-box;
+        opacity: 1;
+        animation: none;
+    }
+
+    .landing-info-inner {
+        max-width: 44%;
+        min-width: 140px;
+        flex: 1 1 140px;
+        padding: 0.5em 0.75em;
+    }
+
+    .landing-info-inner-two {
+        max-width: 44%;
+        min-width: 140px;
+    }
+
+    .info-percentage {
+        font-size: 1.8em;
+        letter-spacing: -2px;
+    }
+
+    .info-des-head {
+        font-size: 0.85em;
+    }
+
+    .info-des-sub {
+        font-size: 0.65em;
+    }
+}
+
+
+/* ==============================
+   RESPONSIVE — SMALL MOBILE (max 480px)
+================================ */
+@media (max-width: 480px) {
+    .landing-head {
+        font-size: 2em;
+        letter-spacing: -0.5px;
+    }
+
+    .landing-description {
+        font-size: 0.95em;
+        width: 100%;
+    }
+
+    .landing-description-high {
+        font-size: 1.2em;
+    }
+
+    .landing-info-container {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5em;
+    }
+
+    .landing-info-inner,
+    .landing-info-inner-two {
+        max-width: 90%;
+        width: 90%;
+        flex: unset;
+    }
+
+    .info-percentage {
+        font-size: 2em;
+    }
+
+    .landing-access-button {
+        width: 85vw;
+        max-width: 300px;
+    }
+}
+
+
+
+/* ==============================landing-one================================ */
+
+.landing-one {
+    height: 100vh;
+    background-color: #000;
+}
+
+
+
+

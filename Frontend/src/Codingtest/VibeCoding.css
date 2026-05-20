@@ -1,0 +1,703 @@
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+.vc-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #0a0a0a;
+    color: #eee;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.vc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 18px;
+    background: #050505;
+    border-bottom: 1px solid #222;
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.vc-timer {
+    font-size: 20px;
+    font-weight: 300;
+    color: #ff4400;
+    min-width: 75px;
+    letter-spacing: 0.02em;
+}
+
+.vc-header-mid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+}
+
+.vc-active-label {
+    font-size: 13px;
+    color: #c4c4c4;
+}
+
+.vc-lang-pill {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 9px;
+    color: #ff7744;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.vc-submit-btn {
+    background: #ff4400;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+.vc-submit-btn:hover {
+    background: #ff5a1a;
+}
+
+/* ── Split layout ─────────────────────────────────────────────────────────── */
+.vc-split {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Drag handles ─────────────────────────────────────────────────────────── */
+.vc-drag-col {
+    width: 4px;
+    background: #181818;
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+}
+
+.vc-drag-col:hover,
+.vc-drag-col:active {
+    background: #ff440055;
+}
+
+.vc-drag-col::after {
+    content: '';
+    position: absolute;
+    inset: 0 -3px;
+}
+
+.vc-drag-row {
+    height: 5px;
+    background: #151515;
+    cursor: row-resize;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    position: relative;
+}
+
+.vc-drag-row:hover,
+.vc-drag-row:active {
+    background: #ff440055;
+}
+
+.vc-drag-row::after {
+    content: '';
+    position: absolute;
+    inset: -3px 0;
+}
+
+/* ── Shared panel title ───────────────────────────────────────────────────── */
+.vc-panel-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: #060606;
+    border-bottom: 1px solid #1e1e1e;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: #555;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.vc-icon-btn {
+    background: none;
+    border: 1px solid #2e2e2e;
+    color: #888;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+
+.vc-icon-btn:hover {
+    border-color: #ff4400;
+    color: #ff4400;
+}
+
+/* ── File Explorer ────────────────────────────────────────────────────────── */
+.vc-explorer {
+    min-width: 90px;
+    max-width: 220px;
+    background: #070707;
+    border-right: 1px solid #1e1e1e;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.vc-new-file-row {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+}
+
+.vc-new-file-row input {
+    flex: 1;
+    background: #141414;
+    border: 1px solid #ff440055;
+    color: #eee;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+    outline: none;
+    min-width: 0;
+}
+
+.vc-new-file-row button {
+    background: #ff4400;
+    border: none;
+    color: white;
+    border-radius: 4px;
+    padding: 0 7px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.vc-file-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.vc-file-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    min-height: 30px;
+    transition: background 0.1s;
+}
+
+.vc-file-item:hover {
+    background: #111;
+}
+
+.vc-file-item.active {
+    background: #111;
+    border-left-color: #ff4400;
+}
+
+.vc-file-icon {
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.vc-file-name {
+    font-size: 11px;
+    color: #aaa;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-file-item.active .vc-file-name {
+    color: #fff;
+}
+
+.vc-file-del {
+    background: none;
+    border: none;
+    color: #444;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+
+.vc-file-item:hover .vc-file-del {
+    opacity: 1;
+}
+
+.vc-file-del:hover {
+    color: #ff4444;
+}
+
+.vc-rename-input {
+    flex: 1;
+    min-width: 0;
+    background: #1a1a1a;
+    border: 1px solid #ff440066;
+    color: #eee;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-family: inherit;
+    outline: none;
+}
+
+/* ── Editor panel ─────────────────────────────────────────────────────────── */
+.vc-editor-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0a0a0a;
+}
+
+.vc-editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 12px;
+    background: #060606;
+    border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.vc-toolbar-file {
+    font-size: 12px;
+    color: #777;
+}
+
+.vc-format-btn {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    color: #aaa;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.vc-format-btn:hover {
+    border-color: #ff4400;
+    color: #ff7744;
+    background: #1e1210;
+}
+
+.vc-editor-wrap {
+    overflow: hidden;
+    flex-shrink: 0;
+    padding: 0 10px 0 10px;
+    padding-top: 8px;
+    box-sizing: border-box;
+}
+
+.vc-code-editor {
+    width: 100%;
+    height: 100%;
+    background: #0c0c0c;
+    border: 1px solid #1e1e1e;
+    border-radius: 6px;
+    color: #d4d4d4;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    padding: 14px 16px;
+    resize: none;
+    outline: none;
+    tab-size: 2;
+    box-sizing: border-box;
+    caret-color: #ff4400;
+}
+
+.vc-code-editor:focus {
+    border-color: #ff440033;
+}
+
+.vc-code-editor::selection {
+    background: #ff440033;
+}
+
+/* ── Terminal / Output ────────────────────────────────────────────────────── */
+.vc-terminal {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #060606;
+    border-top: 1px solid #1a1a1a;
+    margin: 0 10px 10px;
+    border: 1px solid #1e1e1e;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.vc-terminal-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background: #080808;
+    border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+}
+
+.vc-term-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.vc-tab {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    padding: 3px 10px;
+    border-radius: 4px;
+    transition: all 0.12s;
+    white-space: nowrap;
+}
+
+.vc-tab:hover {
+    color: #999;
+    background: #141414;
+}
+
+.vc-tab.active {
+    color: #ddd;
+    background: #161616;
+    border: 1px solid #2a2a2a;
+}
+
+.vc-term-right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.vc-run-btn {
+    background: #ff4400;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 5px;
+    color: white;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+
+.vc-run-btn:hover {
+    background: #ff5a1a;
+}
+
+.vc-run-btn:disabled {
+    background: #3a2010;
+    color: #777;
+    cursor: not-allowed;
+}
+
+.vc-output {
+    flex: 1;
+    margin: 0;
+    padding: 12px 14px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #bbb;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+}
+
+.vc-preview-frame {
+    flex: 1;
+    width: 100%;
+    border: none;
+    background: white;
+    display: block;
+}
+
+.vc-preview-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 12px;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.7;
+}
+
+.vc-preview-empty strong {
+    color: #ff7744;
+
+}
+
+/* ── AI Chat (right) ──────────────────────────────────────────────────────── */
+.vc-chat {
+    min-width: 220px;
+    max-width: 500px;
+    background: #080808;
+    border-left: 1px solid #1e1e1e;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.vc-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Message bubbles */
+.vc-bubble {
+    max-width: 100%;
+}
+
+.vc-bubble-user {
+    align-self: flex-end;
+    background: #1c1008;
+    border: 1px solid #ff440033;
+    border-radius: 10px 10px 2px 10px;
+    padding: 8px 12px;
+    margin-top: 10px;
+}
+
+.vc-bubble-assistant {
+    align-self: flex-start;
+    margin-top: 6px;
+}
+
+.vc-bubble-text {
+    margin: 0 0 4px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #ccc;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.vc-bubble-user .vc-bubble-text {
+    color: #ffb899;
+    font-size: 12px;
+}
+
+.vc-bubble-text:last-child {
+    margin-bottom: 0;
+}
+
+/* Code blocks inside chat */
+.vc-code-block {
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 6px 0;
+    font-size: 12px;
+}
+
+.vc-code-block-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background: #111;
+    border-bottom: 1px solid #222;
+}
+
+.vc-code-lang {
+    font-size: 10px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.vc-code-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.vc-cb-btn {
+    background: #1a1a1a;
+    border: 1px solid #2e2e2e;
+    color: #888;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 10px;
+    font-family: inherit;
+    transition: all 0.12s;
+    white-space: nowrap;
+}
+
+.vc-cb-btn:hover {
+    border-color: #555;
+    color: #ccc;
+}
+
+.vc-use-btn {
+    border-color: #ff440044;
+    color: #ff7744;
+}
+
+.vc-use-btn:hover {
+    background: #1e0e06;
+    border-color: #ff4400;
+    color: #ff9966;
+}
+
+.vc-code-pre {
+    margin: 0;
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #d4d4d4;
+    white-space: pre;
+    background: transparent;
+}
+
+/* Chat input */
+.vc-chat-empty {
+    color: #969696;
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: center;
+    padding: 24px 14px;
+}
+
+.vc-chat-empty i {
+    color: #ff7744;
+}
+
+.vc-chat-input {
+    padding: 10px;
+    border-top: 1px solid #1e1e1e;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.vc-chat-input textarea {
+    flex: 1;
+    min-width: 0;
+    background: #232323;
+    border: 1px solid #252525;
+    color: #ddd;
+    padding: 8px 10px;
+    border-radius: 10px;
+    resize: none;
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.5;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.vc-chat-input textarea:focus {
+    border-color: #ff51114f;
+}
+
+.vc-send-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 50%;
+    background: #ff5111;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+    padding: 0;
+}
+
+.vc-send-btn:hover {
+    background: #ff5111c5;
+    transform: scale(1.07);
+}
+
+.vc-send-btn:active {
+    transform: scale(0.95);
+}
+
+.vc-send-btn svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2a2a2a;
+    border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3a3a3a;
+}

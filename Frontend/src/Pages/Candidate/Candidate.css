@@ -1,0 +1,792 @@
+/* ══════════════════════════════════════════════════
+   SHARED TOKENS
+══════════════════════════════════════════════════ */
+:root {
+    --bg: #0e0e0e;
+    --bg2: #141414;
+    --bg3: #1a1a1a;
+    --border: #1e1e1e;
+    --border2: #2a2a2a;
+    --text: #f0f0f0;
+    --text2: #aaa;
+    --text3: #555;
+    --accent: #ff5e00;
+    --accent-bg: #1e0d00;
+    --green: #34d17a;
+    --green-bg: #0d2b1a;
+    --red: #e05555;
+    --red-bg: #2a0d0d;
+    --radius: 10px;
+}
+
+/* ══════════════════════════════════════════════════
+   JOB POST PAGE — two column
+══════════════════════════════════════════════════ */
+
+.jobpost-main {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+}
+
+.jobpost-loading,
+.jobpost-err {
+    color: var(--text3);
+    text-align: center;
+    margin-top: 80px;
+    font-size: 15px;
+    padding: 48px;
+}
+
+.jobpost-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 48px 40px 80px;
+}
+
+.jobpost-card {
+    max-width: 680px;
+}
+
+.jobpost-company {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.jobpost-title {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 16px;
+    letter-spacing: -0.4px;
+    line-height: 1.2;
+}
+
+.jobpost-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+}
+
+.jp-tag {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.111);
+    color: white;
+    border: 1px solid #999999;
+}
+
+
+
+.jobpost-body {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.jobpost-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 14px;
+}
+
+.jobpost-desc {
+    font-size: 15px;
+    color: var(--text2);
+    line-height: 1.8;
+    white-space: pre-wrap;
+}
+
+.jobpost-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.jp-detail {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.jp-detail-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.jp-detail span:last-child {
+    font-size: 14px;
+    color: #ddd;
+    font-weight: 500;
+}
+
+.jobpost-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.jp-skill {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    font-size: 13px;
+    padding: 5px 14px;
+    border-radius: 6px;
+}
+
+.jobpost-rounds {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.jp-round {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--text2);
+    font-size: 14px;
+}
+
+.jp-round-num {
+    width: 26px;
+    height: 26px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.jobpost-footer {
+    margin-top: 48px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.jobpost-footer-text {
+    font-size: 14px;
+    color: var(--text3);
+}
+
+.jobpost-apply-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+.jobpost-apply-btn:hover {
+    opacity: 0.88;
+    transform: translateY(-1px);
+}
+
+.jobpost-apply-btn:active {
+    transform: translateY(0);
+}
+
+.jobpost-side {
+    width: 45%;
+    height: 100vh;
+    background: #000;
+    overflow: hidden;
+    background: url('/ree.gif') no-repeat center / cover;
+    display: grid;
+    place-items: center;
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    animation: blurin 1s forwards;
+}
+
+.jobpost-side-logo {
+    height: 60px;
+}
+
+@media (max-width: 768px) {
+    .jobpost-side {
+        display: none;
+    }
+
+    .jobpost-content {
+        padding: 32px 20px 60px;
+    }
+}
+
+/* ══════════════════════════════════════════════════
+   JOB APPLICATION — banner + two-column
+══════════════════════════════════════════════════ */
+
+.ja-main {
+    min-height: 100vh;
+    background: var(--bg);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.ja-main::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+}
+
+.ja-main::-webkit-scrollbar-thumb {
+    background: var(--border2);
+    border-radius: 4px;
+}
+
+.ja-loading {
+    text-align: center;
+    color: var(--text3);
+    margin-top: 80px;
+    font-size: 15px;
+    padding: 48px;
+}
+
+/* ── Banner ── */
+.ja-banner {
+    width: 100%;
+    background: #0a0a0a;
+    border-bottom: 1px solid var(--border);
+    background: url('/re.gif') no-repeat center / cover;
+    position: relative;
+}
+
+.ja-banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.ja-banner-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 40px 36px;
+}
+
+.ja-back {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+}
+
+.ja-back:hover {
+    color: var(--accent);
+}
+
+.ja-banner-company {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+}
+
+.ja-banner-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.3px;
+    margin-bottom: 14px;
+    line-height: 1.2;
+}
+
+.ja-banner-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ja-btag {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.06);
+        color: #aaa;
+        border-color: rgba(255, 255, 255, 0.1);
+}
+
+.ja-btag-skill {
+    background: rgba(255, 255, 255, 0.06);
+    color: #aaa;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Resume upload ── */
+.ja-resume-section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 40px;
+    border-bottom: 1px solid var(--border);
+}
+
+.ja-resume-dropzone {
+    display: block;
+    cursor: pointer;
+    border: 1.5px dashed var(--border2);
+    border-radius: 7px;
+    background: var(--bg2);
+    padding: 20px 24px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.ja-resume-dropzone:hover {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+}
+
+/* Empty state */
+.ja-resume-empty {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ja-resume-upload-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.ja-resume-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+}
+
+.ja-resume-empty-sub {
+    font-size: 12px;
+    color: var(--text3);
+}
+
+/* Loaded / extracting state */
+.ja-resume-state {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ja-resume-file-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    flex-shrink: 0;
+}
+
+.ja-resume-state-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ja-resume-state-sub {
+    font-size: 12px;
+    color: var(--text3);
+}
+
+.ja-resume-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid #1a4a2a;
+    white-space: nowrap;
+}
+
+.ja-resume-badge-warn {
+    background: #2a1f00;
+    color: #f0a040;
+    border-color: #4a3000;
+}
+
+/* Spinner */
+.ja-resume-spinner-ring {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    animation: ja-spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes ja-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ja-extract-msg {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
+}
+
+.ja-em-success {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid #1a4a2a;
+}
+
+.ja-em-warn {
+    background: #2a1f00;
+    color: #f0a040;
+    border: 1px solid #4a3000;
+}
+
+/* Spinner */
+.ja-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ja-spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes ja-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Form body ── */
+.ja-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 40px 48px;
+}
+
+.ja-form-scroll {
+    margin-top: 20px;
+}
+
+.ja-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 32px;
+    align-items: start;
+}
+
+.ja-body--single,
+.ja-body--pro {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    width: 100%;
+}
+
+.ja-form-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px 32px;
+    margin-top: 8px;
+}
+
+.ja-uploads-block {
+    margin-bottom: 8px;
+}
+
+.ja-uploads-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.ja-uploads-grid--one {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+}
+
+.ja-doc-upload--error .ja-resume-dropzone {
+    border-color: #c62828;
+    box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.12);
+}
+
+.ja-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
+    align-items: start;
+}
+
+.ja-field-row--single {
+    grid-template-columns: 1fr;
+}
+
+@media (max-width: 640px) {
+    .ja-field-row,
+    .ja-uploads-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ja-form-card {
+        padding: 20px 18px 24px;
+    }
+}
+
+.ja-empty-fields {
+    font-size: 14px;
+    color: var(--text3);
+    padding: 16px 0;
+}
+
+.ja-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ja-form-footer {
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 720px;
+}
+
+html:has(.ja-main),
+body:has(.ja-main) {
+    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
+}
+
+.ja-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ja-col-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+}
+
+.ja-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ja-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ja-req {
+    color: var(--accent);
+}
+
+.ja-input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ja-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(255, 94, 0, 0.08);
+}
+
+.ja-input::placeholder {
+    color: #333;
+}
+
+.ja-textarea {
+    resize: vertical;
+    min-height: 96px;
+}
+
+.ja-submit {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+.ja-submit:hover {
+    opacity: 0.88;
+    transform: translateY(-1px);
+}
+
+.ja-submit:active {
+    transform: translateY(0);
+}
+
+.ja-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.ja-field-block.ja-field-error .ja-input,
+.ja-field-block.ja-field-error .ja-textarea {
+    border-color: #c62828;
+    box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.12);
+}
+
+.ja-resume-section-error .ja-resume-dropzone {
+    border-color: #c62828;
+    box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.12);
+}
+
+.ja-confirm-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 20px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+}
+
+.ja-confirm-row input[type="checkbox"] {
+    margin-top: 3px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.ja-confirm-row-error {
+    border-color: #c62828;
+    background: var(--red-bg);
+}
+
+.ja-msg {
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-top: 4px;
+}
+
+.ja-msg-success {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid #1a4a2a;
+}
+
+.ja-msg-error {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid #4a1a1a;
+}
+
+@media (max-width: 900px) {
+    .ja-body {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 700px) {
+    .ja-banner-inner {
+        padding: 24px 20px 28px;
+    }
+
+    .ja-wrap {
+        padding: 20px 20px 48px;
+    }
+
+    .ja-resume-section {
+        padding: 16px 20px;
+    }
+}

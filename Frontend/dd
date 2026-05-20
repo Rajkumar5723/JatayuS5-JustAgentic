@@ -1,0 +1,39 @@
+.landing-main {
+    position: relative;
+    height: 100vh;
+    width: 100%;
+    background: url('/bgt.svg') no-repeat center / cover;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.landing-head {
+    font-size: 4.5em;
+    font-family: "Instrument Serif", serif;
+    color: #979797;
+    mix-blend-mode: difference;
+    font-style: italic;
+}
+
+.landing-description {
+    width: 55%;
+    font-size: 1.2em;
+    text-align: center;
+    background: linear-gradient(90deg, #ffffffe8, #ffffffbe);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2em;
+    letter-spacing: -1px;
+}
+
+.landing-description-high {
+    font-family: "Instrument Serif", serif;
+    font-size: 1.35em;
+    font-style: italic;
+    color: white;
+    /* text-shadow: 0 0 20px rgb(255, 178, 158); */
+    letter-spacing: 0;
+    font-weight: 500;
+}
