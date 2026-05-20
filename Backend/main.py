@@ -21,7 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
+# Initialize database tables (non-blocking)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"[DB] Warning: Could not create tables on startup: {e}")
 # LLC
 DB_PATH          = os.path.join(os.path.dirname(os.path.abspath(__file__)), "linkedin_automation.db")
 LI_CLIENT_ID     = os.getenv("LI_CLIENT_ID", "")
