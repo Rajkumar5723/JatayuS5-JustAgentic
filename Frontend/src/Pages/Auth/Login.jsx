@@ -19,7 +19,10 @@ export default function Login() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password })
             })
-            const data = await response.json() 
+            const contentType = response.headers.get("content-type") || ""
+            const data = contentType.includes("application/json")
+                ? await response.json()
+                : { detail: `Unexpected response (${response.status})` }
 
             if (response.ok) {
                 localStorage.setItem("hr_email", data.email)
@@ -30,7 +33,7 @@ export default function Login() {
                 setMessage(data.detail || "Login failed!")
             }
         } catch (error) {
-            setMessage("Server error. Is backend running?")
+            setMessage(`Cannot reach API at ${MAIN_API}. Check VITE_MAIN_API_BASE and redeploy frontend.`)
         }
     }
 
