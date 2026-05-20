@@ -167,6 +167,44 @@ git commit -m "Add Railway Docker deployment support"
 git push -u origin main
 ```
 
+## Render deployment
+
+Deploy with a Render API key (`rnd_...` from **Account Settings → API Keys**).
+
+### Quick API deploy (main-api + frontend)
+
+```powershell
+$env:RENDER_API_KEY = "rnd_your_key_here"
+powershell -File scripts/render-deploy.ps1
+```
+
+This script:
+
+- validates `render.yaml`
+- fixes the existing backend Docker service (`hiresy-main-api`)
+- creates `hiresy-frontend` as a static site if missing
+- triggers deploys
+
+### Full stack (Blueprint — 6 services)
+
+1. Push `render.yaml` to GitHub.
+2. In Render: **New → Blueprint** → connect `Rajkumar5723/JatayuS5-JustAgentic`.
+3. Fill prompted secrets in the `hiresy-backend-shared` env group (from `.env.example`).
+4. Set `LI_REDIRECT_URI` to `https://<hiresy-main-api-host>/linkedin/callback`.
+5. After deploy, set `VITE_LIVEHR_WS_BASE` on the frontend to `wss://<hiresy-live-hr-host>/livehr/ws`.
+6. Seed HR user once in a backend shell: `python seed_hr_user.py`.
+
+| Service | Root | Start command |
+|---|---|---|
+| `hiresy-frontend` | `Frontend` | `npm ci && npm run build` (static) |
+| `hiresy-main-api` | `Backend` | `uvicorn services.main_api.app:app` |
+| `hiresy-evaluator` | `Backend` | `uvicorn services.evaluator.app:app` |
+| `hiresy-shortlisting-test` | `Backend` | `uvicorn services.shortlisting_test.app:app` |
+| `hiresy-coding-test` | `Backend` | `uvicorn services.coding_test.app:app` |
+| `hiresy-live-hr` | `Backend` | `uvicorn services.live_hr.app:app` |
+
+Workspace ID for API calls: `tea-d1nou1k9c44c73ejn8fg` (My Workspace).
+
 ## Railway Docker monorepo deployment
 
 Deploy this as six Railway services from the same GitHub repo. Do not collapse the stack into one service.
