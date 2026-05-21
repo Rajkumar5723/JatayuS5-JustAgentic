@@ -1,0 +1,16 @@
+# Ping Render free-tier services every 14 minutes so they stay warm (~15 min sleep window).
+name: Render Keep-Alive
+
+on:
+  schedule:
+    - cron: "*/14 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping main API
+        run: curl -fsS --max-time 60 "https://jatayus5-justagentic.onrender.com/health"
+      - name: Ping frontend
+        run: curl -fsS --max-time 60 "https://hiresy-frontend.onrender.com/"

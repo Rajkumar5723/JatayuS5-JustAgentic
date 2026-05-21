@@ -93,6 +93,63 @@ async def _store_application_document(
 
 
 # ── Background evaluation trigger ─────────────────────────────
+def _run_evaluation(eval_payload: dict) -> dict | None:
+    """Call evaluator microservice; fall back to in-process pipeline if unreachable."""
+    eval_url = f"{settings.eval_api_url}/eval/evaluate"
+    try:
+        res = requests.post(eval_url, json=eval_payload, timeout=120)
+        if res.ok:
+            return res.json()
+        logger.warning("Eval service HTTP %s: %s", res.status_code, res.text[:200])
+    except Exception as exc:
+        logger.warning("Eval service unreachable at %s: %s", eval_url, exc)
+
+    try:
+        import asyncio
+        import re
+        from services.evaluator.agents.aggregator_agent import orchestrate_evaluation
+
+        github_username = ""
+        if eval_payload.get("github_url"):
+            match = re.search(r"github\.com/([a-zA-Z0-9-]+)", eval_payload["github_url"], re.IGNORECASE)
+            if match:
+                github_username = match.group(1)
+        leetcode_id = ""
+        if eval_payload.get("leetcode_url"):
+            match = re.search(r"leetcode\.com/(?:u/)?([a-zA-Z0-9_-]+)", eval_payload["leetcode_url"], re.IGNORECASE)
+            if match:
+                leetcode_id = match.group(1)
+
+        from services.evaluator.scrapers.github_scraper import analyze_github_data
+        from services.evaluator.scrapers.leetcode_scraper import fetch_leetcode_profile
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            gh_data = analyze_github_data(github_username) if github_username else {}
+            lc_data = loop.run_until_complete(fetch_leetcode_profile(leetcode_id)) if leetcode_id else {}
+            candidate_data = {
+                "resume_text": eval_payload.get("resume_text", ""),
+                "github_username": github_username,
+                "leetcode_id": leetcode_id,
+                "linkedin_url": eval_payload.get("linkedin_url") or "Unknown",
+                "github_raw": gh_data,
+                "leetcode_raw": lc_data,
+            }
+            result = loop.run_until_complete(
+                orchestrate_evaluation(candidate_data, eval_payload.get("job_description", ""))
+            )
+            if isinstance(result, dict):
+                result.setdefault("hiring_recommendation", result.get("recommendation", ""))
+                result.setdefault("summary", result.get("debate_summary", ""))
+                return result
+        finally:
+            loop.close()
+    except Exception as exc:
+        logger.error("In-process evaluation fallback failed: %s", exc)
+    return None
+
+
 def _trigger_evaluation(app_id: int) -> None:
     """Called as a FastAPI background task after an application is saved."""
     db = None
@@ -153,10 +210,8 @@ def _trigger_evaluation(app_id: int) -> None:
             "leetcode_url":    app_entry.leetcode_url or "",
         }
 
-        eval_url = f"{settings.eval_api_url}/eval/evaluate"
-        res = requests.post(eval_url, json=eval_payload, timeout=90)
-        if res.ok:
-            result = res.json()
+        result = _run_evaluation(eval_payload)
+        if result:
             app_entry.eval_score          = str(result.get("final_score", ""))
             app_entry.eval_recommendation = result.get("hiring_recommendation", "")
             app_entry.eval_summary        = result.get("summary", "")
@@ -164,7 +219,7 @@ def _trigger_evaluation(app_id: int) -> None:
             db.commit()
             logger.info("Eval done for app %s → %s", app_id, result.get("final_score"))
         else:
-            logger.warning("Eval service error for app %s: %s", app_id, res.text[:200])
+            logger.warning("Evaluation returned no result for app %s", app_id)
     except Exception as exc:
         logger.error("Evaluation failed for app %s: %s", app_id, exc)
     finally:
@@ -384,6 +439,21 @@ def retry_evaluation(
         raise HTTPException(404, "Application not found")
     background_tasks.add_task(_trigger_evaluation, app_id)
     return {"message": "Evaluation retrying..."}
+
+
+@router.post("/applications/retry-pending-eval", summary="Re-trigger AI evaluation for all apps missing scores")
+def retry_pending_evaluations(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    pending = (
+        db.query(Application)
+        .filter((Application.eval_score == None) | (Application.eval_score == ""))  # noqa: E711
+        .all()
+    )
+    for app_entry in pending:
+        background_tasks.add_task(_trigger_evaluation, app_entry.id)
+    return {"message": f"Queued evaluation for {len(pending)} application(s)", "count": len(pending)}
 
 
 @router.get("/applications/{app_id}/tests", summary="Get test history for a candidate")
