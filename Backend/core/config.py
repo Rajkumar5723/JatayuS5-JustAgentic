@@ -147,15 +147,22 @@ class Settings(BaseSettings):
 
     @property
     def test_api_url(self) -> str:
-        return (self.TEST_API_URL or f"http://127.0.0.1:{self.PORT_TEST}").rstrip("/")
+        return (self.TEST_API_URL or self._default_round_service_url(self.PORT_TEST)).rstrip("/")
 
     @property
     def coding_api_url(self) -> str:
-        return (self.CODING_API_URL or f"http://127.0.0.1:{self.PORT_CODING}").rstrip("/")
+        return (self.CODING_API_URL or self._default_round_service_url(self.PORT_CODING)).rstrip("/")
 
     @property
     def livehr_api_url(self) -> str:
-        return (self.LIVEHR_API_URL or f"http://127.0.0.1:{self.PORT_LIVEHR}").rstrip("/")
+        return (self.LIVEHR_API_URL or self._default_round_service_url(self.PORT_LIVEHR)).rstrip("/")
+
+    def _default_round_service_url(self, port: int) -> str:
+        main = (self.MAIN_API_URL or "").strip().rstrip("/")
+        local_hosts = ("http://127.0.0.1", "http://localhost", "https://127.0.0.1", "https://localhost")
+        if main and not main.startswith(local_hosts):
+            return main
+        return f"http://127.0.0.1:{port}"
 
 
 @lru_cache(maxsize=1)

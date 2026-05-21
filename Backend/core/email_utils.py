@@ -134,6 +134,10 @@ def send_email(
     verification_case_id: int | None = None,
     meta: dict | None = None,
 ) -> bool:
+    smtp_pass = (settings.SMTP_PASS or "").strip()
+    if " " in smtp_pass and len(smtp_pass.replace(" ", "")) == 16:
+        smtp_pass = smtp_pass.replace(" ", "")
+
     if settings.DISABLE_EMAIL_DELIVERY:
         logger.info("Email delivery disabled - skipping email to %s", to)
         _log_email(
@@ -151,7 +155,7 @@ def send_email(
         )
         return False
 
-    if not settings.SMTP_USER or not settings.SMTP_PASS:
+    if not settings.SMTP_USER or not smtp_pass:
         logger.warning("SMTP not configured - skipping email to %s", to)
         _log_email(
             to=to,
@@ -179,7 +183,7 @@ def send_email(
 
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15) as server:
-            server.login(settings.SMTP_USER, settings.SMTP_PASS)
+            server.login(settings.SMTP_USER, smtp_pass)
             server.sendmail(settings.smtp_from_addr, to, msg.as_string())
 
         logger.info("Email sent -> %s | %s", to, subject)

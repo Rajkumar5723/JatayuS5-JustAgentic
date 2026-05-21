@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import requests
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -150,6 +151,108 @@ def _run_evaluation(eval_payload: dict) -> dict | None:
     return None
 
 
+def _score_value(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _load_eval_data(app_entry: Application) -> dict[str, Any]:
+    try:
+        data = json.loads(app_entry.eval_data or "{}")
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _ensure_initial_shortlist_invite(
+    db: Session,
+    app_entry: Application,
+    job: Job | None,
+    eval_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Create/resend the first MCQ/Aptitude invite after AI evaluation."""
+    from core.interview_rounds import parse_rounds_config
+    from services.shortlisting_test.app import _assessment_copy, _generate_questions, _send_test_email
+
+    result = eval_result or _load_eval_data(app_entry)
+    final_score = _score_value(result.get("final_score", app_entry.eval_score))
+    if final_score < settings.SHORTLIST_MIN_SCORE:
+        return {
+            "shortlist_threshold_met": False,
+            "test_created": False,
+            "test_email_sent": False,
+            "assessment_kind": "",
+            "test_token": "",
+        }
+
+    configured_rounds = parse_rounds_config(job.rounds if job else None)
+    first_round = configured_rounds[0] if configured_rounds else "mcq"
+    if first_round not in {"mcq", "aptitude"}:
+        return {
+            "shortlist_threshold_met": True,
+            "test_created": False,
+            "test_email_sent": False,
+            "assessment_kind": first_round,
+            "test_token": "",
+        }
+
+    assessment_kind = _assessment_copy(first_round)["kind"]
+    test = (
+        db.query(TestSession)
+        .filter(
+            TestSession.application_id == app_entry.id,
+            TestSession.assessment_kind == assessment_kind,
+        )
+        .order_by(TestSession.created_at.desc(), TestSession.id.desc())
+        .first()
+    )
+    created = False
+    if not test:
+        job_title = job.job_name if job else "the position"
+        job_skills = job.skills if job else (app_entry.technical_skills or "General")
+        questions = _generate_questions(job_title, job_skills, 10, assessment_kind)
+        test = TestSession(
+            token=uuid.uuid4().hex[:24],
+            application_id=app_entry.id,
+            job_id=app_entry.job_id,
+            candidate_name=app_entry.full_name or "Candidate",
+            candidate_email=app_entry.email or "",
+            job_title=job_title,
+            job_skills=job_skills,
+            assessment_kind=assessment_kind,
+            questions_json=json.dumps(questions),
+            duration_mins=20,
+            total_questions=10,
+            pass_score=60,
+        )
+        db.add(test)
+        db.commit()
+        db.refresh(test)
+        created = True
+
+    email_sent = bool(test.email_sent)
+    if test.candidate_email and not email_sent:
+        email_sent = _send_test_email(test)
+        test.email_sent = email_sent
+        db.commit()
+
+    if app_entry.status in (None, "", "pending") and test:
+        app_entry.status = "round_1"
+        db.commit()
+
+    return {
+        "shortlist_threshold_met": True,
+        "test_created": True,
+        "test_created_now": created,
+        "test_email_sent": email_sent,
+        "assessment_kind": assessment_kind,
+        "test_token": test.token if test else "",
+        "manual_round_url": settings.public_frontend_path(f"/test/{test.token}") if test else "",
+    }
+
+
 def _trigger_evaluation(app_id: int) -> None:
     """Called as a FastAPI background task after an application is saved."""
     db = None
@@ -212,6 +315,8 @@ def _trigger_evaluation(app_id: int) -> None:
 
         result = _run_evaluation(eval_payload)
         if result:
+            invite_result = _ensure_initial_shortlist_invite(db, app_entry, job, result)
+            result.update(invite_result)
             app_entry.eval_score          = str(result.get("final_score", ""))
             app_entry.eval_recommendation = result.get("hiring_recommendation", "")
             app_entry.eval_summary        = result.get("summary", "")
@@ -315,6 +420,90 @@ def retry_pending_evaluations(
     for app_entry in pending:
         background_tasks.add_task(_trigger_evaluation, app_entry.id)
     return {"message": f"Queued evaluation for {len(pending)} application(s)", "count": len(pending)}
+
+
+@router.post("/applications/resend-failed-invites", summary="Resend failed first-round candidate invites")
+def resend_failed_invites(db: Session = Depends(get_db)):
+    applications = (
+        db.query(Application)
+        .filter(Application.eval_score != None)  # noqa: E711
+        .all()
+    )
+    resent = 0
+    created = 0
+    failed = 0
+    skipped = 0
+    results: list[dict[str, Any]] = []
+
+    for app_entry in applications:
+        job = db.query(Job).filter(Job.id == app_entry.job_id).first()
+        before = (
+            db.query(TestSession)
+            .filter(TestSession.application_id == app_entry.id)
+            .count()
+        )
+        try:
+            eval_data = _load_eval_data(app_entry)
+            invite = _ensure_initial_shortlist_invite(db, app_entry, job, eval_data)
+            if invite.get("test_created_now"):
+                created += 1
+            if invite.get("test_email_sent"):
+                resent += 1
+            elif invite.get("test_created") or invite.get("shortlist_threshold_met"):
+                failed += 1
+            else:
+                skipped += 1
+            if eval_data:
+                eval_data.update(invite)
+                app_entry.eval_data = json.dumps(eval_data)
+                db.commit()
+            after = (
+                db.query(TestSession)
+                .filter(TestSession.application_id == app_entry.id)
+                .count()
+            )
+            results.append(
+                {
+                    "application_id": app_entry.id,
+                    "candidate_email": app_entry.email,
+                    "created_session": after > before,
+                    **invite,
+                }
+            )
+        except Exception as exc:
+            failed += 1
+            logger.warning("Invite resend failed for app %s: %s", app_entry.id, exc)
+            results.append(
+                {
+                    "application_id": app_entry.id,
+                    "candidate_email": app_entry.email,
+                    "error": str(exc),
+                }
+            )
+
+    return {
+        "message": "Invite resend completed",
+        "count": len(applications),
+        "resent_or_already_sent": resent,
+        "created": created,
+        "failed": failed,
+        "skipped": skipped,
+        "results": results,
+    }
+
+
+@router.post("/applications/{app_id}/resend-invite", summary="Resend a candidate's first-round invite")
+def resend_application_invite(app_id: int, db: Session = Depends(get_db)):
+    app_entry = db.query(Application).filter(Application.id == app_id).first()
+    if not app_entry:
+        raise HTTPException(404, "Application not found")
+    job = db.query(Job).filter(Job.id == app_entry.job_id).first()
+    invite = _ensure_initial_shortlist_invite(db, app_entry, job, _load_eval_data(app_entry))
+    eval_data = _load_eval_data(app_entry)
+    eval_data.update(invite)
+    app_entry.eval_data = json.dumps(eval_data)
+    db.commit()
+    return {"message": "Invite resend attempted", "application_id": app_id, **invite}
 
 
 @router.get("/applications/job/{job_id}/count", summary="Count applications for a job")
