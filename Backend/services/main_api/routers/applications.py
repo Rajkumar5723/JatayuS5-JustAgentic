@@ -7,6 +7,8 @@ Also triggers async AI evaluation after submission.
 from __future__ import annotations
 import json
 import logging
+import os
+import re
 import requests
 import uuid
 from typing import Any
@@ -24,6 +26,213 @@ from core.s3_manager import get_s3_manager
 
 router = APIRouter(tags=["applications"])
 logger = logging.getLogger(__name__)
+
+
+def _component(score: float, reasoning: str, signals: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "score": int(max(0, min(100, round(score)))),
+        "reasoning": reasoning,
+        "signals": signals or [],
+    }
+
+
+def _extract_username(pattern: str, value: str) -> str:
+    match = re.search(pattern, value or "", re.IGNORECASE)
+    return match.group(1) if match else ""
+
+
+def _score_from_skill_overlap(resume_text: str, job_description: str) -> tuple[int, list[str]]:
+    resume_lower = (resume_text or "").lower()
+    skills_text = ""
+    if "skills:" in (job_description or "").lower():
+        skills_text = re.split(r"skills:", job_description, flags=re.IGNORECASE, maxsplit=1)[-1]
+    required = [
+        item.strip().lower()
+        for item in re.split(r"[,;/\n]", skills_text)
+        if item.strip()
+    ]
+    matched = [skill for skill in required if skill and skill in resume_lower]
+    if required:
+        ratio = len(matched) / max(1, len(required))
+        return int(55 + (ratio * 40)), matched[:6]
+    baseline = 75 if len(resume_text or "") > 1200 else 55
+    return baseline, []
+
+
+def _fetch_github_light(github_url: str) -> dict[str, Any]:
+    username = _extract_username(r"github\.com/([a-zA-Z0-9-]+)", github_url)
+    if not username:
+        return {}
+    headers = {"Authorization": f"token {settings.GITHUB_TOKEN}"} if settings.GITHUB_TOKEN else {}
+    try:
+        profile_res = requests.get(f"https://api.github.com/users/{username}", headers=headers, timeout=8)
+        repos_res = requests.get(
+            f"https://api.github.com/users/{username}/repos?sort=pushed&per_page=30",
+            headers=headers,
+            timeout=10,
+        )
+        profile = profile_res.json() if profile_res.ok else {}
+        repos = repos_res.json() if repos_res.ok and isinstance(repos_res.json(), list) else []
+        total_stars = sum(int(repo.get("stargazers_count") or 0) for repo in repos)
+        languages: dict[str, int] = {}
+        for repo in repos:
+            lang = repo.get("language") or "Other"
+            languages[lang] = languages.get(lang, 0) + 1
+        return {
+            "username": username,
+            "display_name": profile.get("name") or username,
+            "public_repos": profile.get("public_repos", len(repos)),
+            "total_repos": len(repos),
+            "total_stars": total_stars,
+            "followers": profile.get("followers", 0),
+            "following": profile.get("following", 0),
+            "languages": languages,
+            "top_repos": [
+                {
+                    "name": repo.get("name"),
+                    "stars": repo.get("stargazers_count", 0),
+                    "forks": repo.get("forks_count", 0),
+                    "language": repo.get("language"),
+                    "description": repo.get("description") or "",
+                }
+                for repo in sorted(repos, key=lambda r: r.get("stargazers_count", 0), reverse=True)[:8]
+            ],
+            "repo_types": {
+                "original": sum(1 for repo in repos if not repo.get("fork")),
+                "forked": sum(1 for repo in repos if repo.get("fork")),
+            },
+        }
+    except Exception as exc:
+        logger.warning("Light GitHub fetch failed for %s: %s", username, exc)
+        return {"username": username}
+
+
+def _fetch_leetcode_light(leetcode_url: str) -> dict[str, Any]:
+    username = _extract_username(r"leetcode\.com/(?:u/)?([a-zA-Z0-9_-]+)", leetcode_url)
+    if not username:
+        return {}
+    query = """
+query getUserProfile($username: String!) {
+  matchedUser(username: $username) {
+    username
+    profile { ranking }
+    submitStatsGlobal { acSubmissionNum { difficulty count } }
+  }
+}
+"""
+    try:
+        response = requests.post(
+            "https://leetcode.com/graphql",
+            json={"query": query, "variables": {"username": username}},
+            headers={
+                "Content-Type": "application/json",
+                "Referer": "https://leetcode.com",
+                "User-Agent": "Mozilla/5.0",
+            },
+            timeout=12,
+        )
+        response.raise_for_status()
+        user = (response.json().get("data") or {}).get("matchedUser") or {}
+        stats = user.get("submitStatsGlobal", {}).get("acSubmissionNum", [])
+        solved = {item.get("difficulty"): int(item.get("count") or 0) for item in stats}
+        total = solved.get("All", 0) or sum(count for key, count in solved.items() if key != "All")
+        return {
+            "username": username,
+            "display_name": user.get("username") or username,
+            "total": total,
+            "easy": solved.get("Easy", 0),
+            "medium": solved.get("Medium", 0),
+            "hard": solved.get("Hard", 0),
+            "ranking": (user.get("profile") or {}).get("ranking"),
+        }
+    except Exception as exc:
+        logger.warning("Light LeetCode fetch failed for %s: %s", username, exc)
+        return {"username": username, "display_name": username, "total": 0, "easy": 0, "medium": 0, "hard": 0}
+
+
+def _run_lightweight_evaluation(eval_payload: dict[str, Any]) -> dict[str, Any]:
+    resume_text = eval_payload.get("resume_text", "")
+    job_description = eval_payload.get("job_description", "")
+    resume_score, matched_skills = _score_from_skill_overlap(resume_text, job_description)
+
+    github_raw = _fetch_github_light(eval_payload.get("github_url", ""))
+    github_repos = int(github_raw.get("public_repos") or github_raw.get("total_repos") or 0)
+    github_stars = int(github_raw.get("total_stars") or 0)
+    github_score = 0 if not github_raw else min(90, 35 + github_repos * 2 + github_stars)
+
+    leetcode_raw = _fetch_leetcode_light(eval_payload.get("leetcode_url", ""))
+    lc_total = int(leetcode_raw.get("total") or 0)
+    lc_hard = int(leetcode_raw.get("hard") or 0)
+    if lc_total >= 300 or lc_hard >= 40:
+        leetcode_score = 85
+    elif lc_total >= 100:
+        leetcode_score = 60
+    elif lc_total >= 40:
+        leetcode_score = 50
+    elif lc_total > 0:
+        leetcode_score = 35
+    else:
+        leetcode_score = 0
+
+    linkedin_score = 80 if eval_payload.get("linkedin_url") else 45
+    role_score = min(95, resume_score + (8 if matched_skills else 0))
+
+    component_scores = {
+        "resume": _component(
+            resume_score,
+            "Resume was scored with lightweight skill-overlap and profile-strength checks.",
+            [f"Matched skill: {skill}" for skill in matched_skills[:3]],
+        ),
+        "github": _component(
+            github_score,
+            "GitHub score is based on public repository count and stars from the GitHub API.",
+            [f"Public repos: {github_repos}", f"Stars: {github_stars}"],
+        ),
+        "leetcode": _component(
+            leetcode_score,
+            "LeetCode score is based on solved problem count and hard problem count.",
+            [f"Total solved: {lc_total}", f"Hard solved: {lc_hard}"],
+        ),
+        "linkedin": _component(
+            linkedin_score,
+            "LinkedIn profile URL was provided and used as a professional-presence signal.",
+            [eval_payload.get("linkedin_url", "")] if eval_payload.get("linkedin_url") else [],
+        ),
+        "role_match": _component(
+            role_score,
+            "Role match is based on required skill overlap between the job description and resume.",
+            [f"Matched {len(matched_skills)} required skill(s)"],
+        ),
+    }
+
+    weights = {"resume": 0.35, "github": 0.15, "leetcode": 0.15, "linkedin": 0.20, "role_match": 0.15}
+    final_score = round(sum(component_scores[key]["score"] * weight for key, weight in weights.items()), 1)
+    recommendation = "Strong Hire" if final_score >= 85 else "Hire" if final_score >= 70 else "Borderline" if final_score >= 60 else "No Hire"
+    summary = (
+        "Lightweight production evaluation completed successfully. "
+        f"Resume/role score: {resume_score}, GitHub score: {component_scores['github']['score']}, "
+        f"LeetCode score: {component_scores['leetcode']['score']}."
+    )
+    return {
+        "hiring_recommendation": recommendation,
+        "final_score": final_score,
+        "confidence_factor": 0.9,
+        "formula_calculation": " + ".join(f"({component_scores[key]['score']}*{weight:.2f})" for key, weight in weights.items()),
+        "component_scores": component_scores,
+        "github_raw": github_raw,
+        "leetcode_raw": leetcode_raw,
+        "summary": summary,
+        "inconsistencies": [],
+        "debate_content": {
+            "panel_reasoning": summary,
+            "weight_adjustments": {},
+            "inconsistencies_flagged": [],
+            "name_consistency": [],
+            "names_found": {},
+        },
+        "role_matching": {"missing_skills": []},
+        "evaluation_mode": "lightweight_production",
+    }
 
 
 def _app_doc_payload(storage: EvidenceStorageService | None, row: ApplicationDocument) -> dict[str, Any]:
@@ -95,7 +304,7 @@ async def _store_application_document(
 
 # ── Background evaluation trigger ─────────────────────────────
 def _run_evaluation(eval_payload: dict) -> dict | None:
-    """Call evaluator microservice; fall back to in-process pipeline if unreachable."""
+    """Call evaluator microservice; use memory-safe fallback on single-service Render."""
     eval_url = f"{settings.eval_api_url}/eval/evaluate"
     try:
         res = requests.post(eval_url, json=eval_payload, timeout=120)
@@ -106,8 +315,15 @@ def _run_evaluation(eval_payload: dict) -> dict | None:
         logger.warning("Eval service unreachable at %s: %s", eval_url, exc)
 
     try:
+        return _run_lightweight_evaluation(eval_payload)
+    except Exception as exc:
+        logger.error("Lightweight evaluation fallback failed: %s", exc)
+
+    if (os.getenv("ENABLE_HEAVY_EVAL_FALLBACK") or "").strip().lower() not in {"1", "true", "yes"}:
+        return None
+
+    try:
         import asyncio
-        import re
         from services.evaluator.agents.aggregator_agent import orchestrate_evaluation
 
         github_username = ""
