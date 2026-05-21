@@ -302,6 +302,21 @@ async def submit_application(
     }
 
 
+@router.post("/applications/retry-pending-eval", summary="Re-trigger AI evaluation for all apps missing scores")
+def retry_pending_evaluations(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    pending = (
+        db.query(Application)
+        .filter((Application.eval_score == None) | (Application.eval_score == ""))  # noqa: E711
+        .all()
+    )
+    for app_entry in pending:
+        background_tasks.add_task(_trigger_evaluation, app_entry.id)
+    return {"message": f"Queued evaluation for {len(pending)} application(s)", "count": len(pending)}
+
+
 @router.get("/applications/job/{job_id}/count", summary="Count applications for a job")
 def get_application_count(job_id: int, db: Session = Depends(get_db)):
     return {"count": db.query(Application).filter(Application.job_id == job_id).count()}
@@ -439,21 +454,6 @@ def retry_evaluation(
         raise HTTPException(404, "Application not found")
     background_tasks.add_task(_trigger_evaluation, app_id)
     return {"message": "Evaluation retrying..."}
-
-
-@router.post("/applications/retry-pending-eval", summary="Re-trigger AI evaluation for all apps missing scores")
-def retry_pending_evaluations(
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-):
-    pending = (
-        db.query(Application)
-        .filter((Application.eval_score == None) | (Application.eval_score == ""))  # noqa: E711
-        .all()
-    )
-    for app_entry in pending:
-        background_tasks.add_task(_trigger_evaluation, app_entry.id)
-    return {"message": f"Queued evaluation for {len(pending)} application(s)", "count": len(pending)}
 
 
 @router.get("/applications/{app_id}/tests", summary="Get test history for a candidate")
