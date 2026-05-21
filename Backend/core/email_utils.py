@@ -182,9 +182,19 @@ def send_email(
         msg.attach(MIMEText(html, "html"))
 
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15) as server:
-            server.login(settings.SMTP_USER, smtp_pass)
-            server.sendmail(settings.smtp_from_addr, to, msg.as_string())
+        send_errors: list[str] = []
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=20) as server:
+                server.login(settings.SMTP_USER, smtp_pass)
+                server.sendmail(settings.smtp_from_addr, to, msg.as_string())
+        except Exception as ssl_exc:
+            send_errors.append(f"smtp_ssl_465: {ssl_exc}")
+            with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                server.login(settings.SMTP_USER, smtp_pass)
+                server.sendmail(settings.smtp_from_addr, to, msg.as_string())
 
         logger.info("Email sent -> %s | %s", to, subject)
         _log_email(
@@ -201,6 +211,8 @@ def send_email(
         )
         return True
     except Exception as exc:
+        if "send_errors" in locals() and send_errors:
+            exc = RuntimeError("; ".join([*send_errors, f"smtp_starttls_587: {exc}"]))
         logger.error("Email failed -> %s | %s | %s", to, subject, exc)
         _log_email(
             to=to,
