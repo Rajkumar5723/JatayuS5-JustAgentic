@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import smtplib
+import socket
 import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -18,6 +19,57 @@ from core.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 _LOGO_CACHE: str | None = None
+SMTP_HOST = "smtp.gmail.com"
+SMTP_SSL_PORT = 465
+SMTP_STARTTLS_PORT = 587
+SMTP_TIMEOUT = 20
+
+
+def _ipv4_sockaddrs(host: str, port: int) -> list[tuple]:
+    return [
+        info[4]
+        for info in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    ]
+
+
+def _connect_smtp_ssl_ipv4(host: str, port: int, context: ssl.SSLContext) -> smtplib.SMTP_SSL:
+    last_exc: Exception | None = None
+    for sockaddr in _ipv4_sockaddrs(host, port):
+        try:
+            raw_sock = socket.create_connection(sockaddr, timeout=SMTP_TIMEOUT)
+            ssl_sock = context.wrap_socket(raw_sock, server_hostname=host)
+            server = smtplib.SMTP_SSL(timeout=SMTP_TIMEOUT, context=context)
+            server.sock = ssl_sock
+            server.file = ssl_sock.makefile("rb")
+            server._host = host
+            code, msg = server.getreply()
+            if code != 220:
+                server.close()
+                raise smtplib.SMTPConnectError(code, msg)
+            return server
+        except Exception as exc:
+            last_exc = exc
+    raise last_exc or OSError("No IPv4 SMTP SSL address available")
+
+
+def _connect_smtp_starttls_ipv4(host: str, port: int, context: ssl.SSLContext) -> smtplib.SMTP:
+    last_exc: Exception | None = None
+    for sockaddr in _ipv4_sockaddrs(host, port):
+        server = smtplib.SMTP(timeout=SMTP_TIMEOUT)
+        try:
+            server.connect(sockaddr[0], port)
+            server._host = host
+            server.ehlo()
+            server.starttls(context=context)
+            server.ehlo()
+            return server
+        except Exception as exc:
+            last_exc = exc
+            try:
+                server.close()
+            except Exception:
+                pass
+    raise last_exc or OSError("No IPv4 SMTP STARTTLS address available")
 
 
 def _load_logo() -> str:
@@ -184,15 +236,12 @@ def send_email(
         context = ssl.create_default_context()
         send_errors: list[str] = []
         try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=20) as server:
+            with _connect_smtp_ssl_ipv4(SMTP_HOST, SMTP_SSL_PORT, context) as server:
                 server.login(settings.SMTP_USER, smtp_pass)
                 server.sendmail(settings.smtp_from_addr, to, msg.as_string())
         except Exception as ssl_exc:
-            send_errors.append(f"smtp_ssl_465: {ssl_exc}")
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.ehlo()
+            send_errors.append(f"smtp_ssl_465_ipv4: {ssl_exc}")
+            with _connect_smtp_starttls_ipv4(SMTP_HOST, SMTP_STARTTLS_PORT, context) as server:
                 server.login(settings.SMTP_USER, smtp_pass)
                 server.sendmail(settings.smtp_from_addr, to, msg.as_string())
 
@@ -212,7 +261,7 @@ def send_email(
         return True
     except Exception as exc:
         if "send_errors" in locals() and send_errors:
-            exc = RuntimeError("; ".join([*send_errors, f"smtp_starttls_587: {exc}"]))
+            exc = RuntimeError("; ".join([*send_errors, f"smtp_starttls_587_ipv4: {exc}"]))
         logger.error("Email failed -> %s | %s | %s", to, subject, exc)
         _log_email(
             to=to,
