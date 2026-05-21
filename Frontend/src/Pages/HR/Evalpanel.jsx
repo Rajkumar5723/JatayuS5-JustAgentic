@@ -435,7 +435,7 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
                     <GlassCard className="gc-commit" style={{ background: "linear-gradient(135deg, #080808 0%, #0f0f0f 100%)" }}>
                         <p className="gc-eyebrow">Commit Activity</p>
                         <p className="gc-micro">Pushes per month · public events API</p>
-                        <div style={{ flex: 1, minHeight: 0 }}>
+                        <div className="ep-chart-frame ep-chart-frame-commit">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={commitData} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
                                     <defs>
@@ -477,7 +477,7 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
                                         );
                                     })}
                                 </div>
-                                <div style={{ flex: 1, minHeight: 0 }}>
+                                <div className="ep-chart-frame ep-chart-frame-languages">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={langEntries.map(([n, v], i) => ({ n, v, fill: PALETTE[i] }))} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
                                             <Bar dataKey="v" name="Repos" radius={[4, 4, 0, 0]}>
@@ -565,7 +565,7 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
                     <GlassCard className="gc-lc-bar" style={{ background: "linear-gradient(135deg, #080808 0%, #0f0f0f 100%)" }}>
                         <p className="gc-eyebrow">Difficulty Comparison</p>
                         <p className="gc-micro">Easy · Medium · Hard solved count</p>
-                        <div style={{ flex: 1, minHeight: 0 }}>
+                        <div className="ep-chart-frame ep-chart-frame-leetcode">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={lcDiff} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 8" stroke="#aaaaaa" horizontal={true} vertical={false} />

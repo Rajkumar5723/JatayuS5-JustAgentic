@@ -368,15 +368,21 @@
     display: flex;
     gap: 10px;
     align-items: stretch;
+    width: 100%;
+    min-width: 0;
 }
 
 .ep-row-verdict {}
 
-.ep-row-github {}
+.ep-row-github {
+    min-height: 420px;
+}
 
 .ep-row-repos {}
 
-.ep-row-leetcode {}
+.ep-row-leetcode {
+    min-height: 430px;
+}
 
 .ep-row-tabs {}
 
@@ -390,6 +396,7 @@
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .gc:hover {
@@ -405,6 +412,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 /* bg texture overlay */
@@ -830,8 +838,30 @@
 
 .gc-lc-bar {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
+}
+
+.ep-chart-frame {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.ep-chart-frame-commit {
+    height: 300px;
+    min-height: 260px;
+}
+
+.ep-chart-frame-languages {
+    height: 170px;
+    min-height: 150px;
+}
+
+.ep-chart-frame-leetcode {
+    height: 260px;
+    min-height: 230px;
 }
 
 .gc-lc-stats {
@@ -969,8 +999,13 @@
         flex: 0 0 100%;
     }
 
+    .ep-row-github {
+        min-height: 0;
+    }
+
     .ep-row-leetcode {
         flex-wrap: wrap;
+        min-height: 0;
     }
 
     .gc-lc-donut {

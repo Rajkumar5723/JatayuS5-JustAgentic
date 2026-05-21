@@ -456,6 +456,8 @@ def health():
         "status": "ok",
         "groq": bool(settings.GROQ_API_KEY),
         "smtp": bool(settings.SMTP_USER),
+        "resend": bool(settings.RESEND_API_KEY),
+        "email_provider": settings.email_provider,
     }
 
 

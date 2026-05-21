@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     SMTP_PASS: str = ""
     SMTP_FROM: str = ""
     DISABLE_EMAIL_DELIVERY: bool = False
+    EMAIL_PROVIDER: str = "auto"  # auto | resend | smtp
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = ""
 
     # ── App ───────────────────────────────────────────────────
     FRONTEND_URL: str = "http://localhost:5173"
@@ -98,6 +101,15 @@ class Settings(BaseSettings):
     @property
     def smtp_from_addr(self) -> str:
         return self.SMTP_FROM or self.SMTP_USER
+
+    @property
+    def email_provider(self) -> str:
+        provider = (self.EMAIL_PROVIDER or "auto").strip().lower()
+        return provider if provider in {"auto", "resend", "smtp"} else "auto"
+
+    @property
+    def resend_from_addr(self) -> str:
+        return self.RESEND_FROM or "Hiresy <onboarding@resend.dev>"
 
     def _normalize_sqlite_url(self, url: str) -> str:
         value = str(url or "").strip()

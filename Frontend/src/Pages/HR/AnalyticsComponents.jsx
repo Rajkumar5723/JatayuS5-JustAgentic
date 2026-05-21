@@ -712,7 +712,7 @@ export function GitHubAnalytics({ data, aiNote }) {
                         {langData.length > 0 && (
                             <div className="ac-card">
                                 <SectionHeader title="Language Distribution" />
-                                <div className="ac-pie-wrap">
+                                <div className="ac-pie-wrap ac-pie-container">
                                     <PieChart width={170} height={170}>
                                         <Pie data={langData.slice(0, 6)} cx={83} cy={83} innerRadius={44} outerRadius={75}
                                             dataKey="value" strokeWidth={2} stroke="#0a0a0a">
@@ -722,9 +722,9 @@ export function GitHubAnalytics({ data, aiNote }) {
                                     </PieChart>
                                     <div className="ac-legend">
                                         {langData.slice(0, 6).map((l, i) => (
-                                            <div key={i} className="ac-legend-row">
+                                            <div key={i} className="ac-legend-row ac-legend-item">
                                                 <span className="ac-legend-dot" style={{ background: l.fill }} />
-                                                <span className="ac-legend-name">{l.name}</span>
+                                                <span className="ac-legend-name ac-legend-label">{l.name}</span>
                                                 <span className="ac-legend-val">{l.pct}%</span>
                                             </div>
                                         ))}
@@ -736,7 +736,7 @@ export function GitHubAnalytics({ data, aiNote }) {
                         {/* Repo types */}
                         <div className="ac-card">
                             <SectionHeader title="Repo Types" />
-                            <div className="ac-pie-wrap">
+                            <div className="ac-pie-wrap ac-pie-container">
                                 <PieChart width={150} height={150}>
                                     <Pie data={repoTypeData} cx={72} cy={72} innerRadius={36} outerRadius={62}
                                         dataKey="value" strokeWidth={2} stroke="#0a0a0a">
@@ -746,9 +746,9 @@ export function GitHubAnalytics({ data, aiNote }) {
                                 </PieChart>
                                 <div className="ac-legend">
                                     {repoTypeData.map((d, i) => (
-                                        <div key={i} className="ac-legend-row">
+                                        <div key={i} className="ac-legend-row ac-legend-item">
                                             <span className="ac-legend-dot" style={{ background: d.fill }} />
-                                            <span className="ac-legend-name">{d.name}</span>
+                                            <span className="ac-legend-name ac-legend-label">{d.name}</span>
                                             <span className="ac-legend-val">{d.value}</span>
                                         </div>
                                     ))}
@@ -922,8 +922,13 @@ export function GitHubAnalytics({ data, aiNote }) {
 // ══════════════════════════════════════════════
 export function LeetCodeAnalytics({ data, aiNote }) {
     const [view, setView] = useState("overview");
+    const easy = Number(data?.easy || 0);
+    const medium = Number(data?.medium || 0);
+    const hard = Number(data?.hard || 0);
+    const total = Number(data?.total ?? (easy + medium + hard));
+    const difficultyTotal = easy + medium + hard;
 
-    if (!data || !data.total) {
+    if (!data || (!data.username && total <= 0)) {
         return (
             <div className="ac-unavailable">
                 <DataError msg="No LeetCode data available" />
@@ -931,11 +936,10 @@ export function LeetCodeAnalytics({ data, aiNote }) {
         );
     }
 
-    const total = data.total || 0;
     const diffData = [
-        { name: "Easy", value: data.easy || 0, fill: "#22c55e", pct: total ? +((data.easy || 0) / total * 100).toFixed(1) : 0 },
-        { name: "Medium", value: data.medium || 0, fill: "#f59e0b", pct: total ? +((data.medium || 0) / total * 100).toFixed(1) : 0 },
-        { name: "Hard", value: data.hard || 0, fill: "#ef4444", pct: total ? +((data.hard || 0) / total * 100).toFixed(1) : 0 },
+        { name: "Easy", value: easy, fill: "#22c55e", pct: difficultyTotal ? +((easy / difficultyTotal) * 100).toFixed(1) : 0 },
+        { name: "Medium", value: medium, fill: "#f59e0b", pct: difficultyTotal ? +((medium / difficultyTotal) * 100).toFixed(1) : 0 },
+        { name: "Hard", value: hard, fill: "#ef4444", pct: difficultyTotal ? +((hard / difficultyTotal) * 100).toFixed(1) : 0 },
     ];
 
     const topics = [
@@ -979,7 +983,7 @@ export function LeetCodeAnalytics({ data, aiNote }) {
                         {/* Donut */}
                         <div className="ac-card">
                             <SectionHeader title="Difficulty Split" />
-                            <div className="ac-pie-wrap" style={{ position: "relative" }}>
+                            <div className="ac-pie-wrap ac-pie-container" style={{ position: "relative" }}>
                                 <div style={{ position: "relative" }}>
                                     <PieChart width={170} height={170}>
                                         <Pie data={diffData} cx={83} cy={83} innerRadius={52} outerRadius={78}
@@ -995,10 +999,12 @@ export function LeetCodeAnalytics({ data, aiNote }) {
                                 </div>
                                 <div className="ac-legend">
                                     {diffData.map((d, i) => (
-                                        <div key={i} className="ac-legend-row">
+                                        <div key={i} className="ac-legend-row ac-legend-item">
                                             <span className="ac-legend-dot" style={{ background: d.fill }} />
-                                            <span className="ac-legend-name">{d.name}</span>
-                                            <span className="ac-legend-val" style={{ color: d.fill }}>{d.value} ({d.pct}%)</span>
+                                            <span className="ac-legend-name ac-legend-label">{d.name}</span>
+                                            <span className="ac-legend-val" style={{ color: d.fill }}>
+                                                {d.value}{difficultyTotal ? ` (${d.pct}%)` : ""}
+                                            </span>
                                         </div>
                                     ))}
                                 </div>
@@ -1064,7 +1070,7 @@ export function LeetCodeAnalytics({ data, aiNote }) {
                         <Metric label="Contests Attended" value={data.contests_attended || 0} icon={FiActivity} color={ORANGE} />
                         <Metric label="Active Days" value={data.active_days || 0} icon={FiTrendingUp} color="#22c55e" />
                     </div>
-                    <div className="ac-no-contest-note">
+                    <div className="ac-contest-note">
                         <FiAlertCircle size={14} />
                         <span>Full contest history requires LeetCode Premium API access</span>
                     </div>
@@ -1158,8 +1164,6 @@ export function LinkedInAnalytics({ score, reasoning, candidate, linkedinUrl }) 
         </div>
     );
 }
-
-
 
 
 

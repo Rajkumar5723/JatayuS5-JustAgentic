@@ -49,7 +49,7 @@ The repo is a monorepo with two deploy roots:
    - `AWS_S3_BUCKET`
    - `S3_EVIDENCE_BUCKET`
    - `GROQ_API_KEY`
-   - `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+   - `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` or `RESEND_API_KEY`, `RESEND_FROM`
    - `JAAS_APP_ID`
    - `LI_CLIENT_ID`, `LI_CLIENT_SECRET`, `LI_REDIRECT_URI`, `LI_SCOPE`
    - `QR_JWT_SECRET_KEY`
@@ -292,6 +292,9 @@ Set these on every backend service:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `EMAIL_PROVIDER` (`auto`, `resend`, or `smtp`)
+- `RESEND_API_KEY`
+- `RESEND_FROM`
 - `JAAS_APP_ID`
 - `LI_CLIENT_ID`
 - `LI_CLIENT_SECRET`

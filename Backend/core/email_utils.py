@@ -4,12 +4,14 @@ Shared email helper for all Hiresy services.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import os
 import smtplib
 import socket
 import ssl
+import requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -23,6 +25,8 @@ SMTP_HOST = "smtp.gmail.com"
 SMTP_SSL_PORT = 465
 SMTP_STARTTLS_PORT = 587
 SMTP_TIMEOUT = 20
+RESEND_API_URL = "https://api.resend.com/emails"
+RESEND_TIMEOUT = 20
 
 
 def _ipv4_sockaddrs(host: str, port: int) -> list[tuple]:
@@ -136,6 +140,7 @@ def _log_email(
     subject: str,
     stage: str | None,
     status: str,
+    provider: str = "smtp_ssl_gmail",
     error_message: str | None = None,
     application_id: int | None = None,
     test_session_id: int | None = None,
@@ -155,6 +160,7 @@ def _log_email(
                     subject=subject,
                     stage=stage,
                     status=status,
+                    provider=provider,
                     error_message=error_message,
                     application_id=application_id,
                     test_session_id=test_session_id,
@@ -189,6 +195,9 @@ def send_email(
     smtp_pass = (settings.SMTP_PASS or "").strip()
     if " " in smtp_pass and len(smtp_pass.replace(" ", "")) == 16:
         smtp_pass = smtp_pass.replace(" ", "")
+    email_provider = settings.email_provider
+    resend_configured = bool(settings.RESEND_API_KEY)
+    smtp_configured = bool(settings.SMTP_USER and smtp_pass)
 
     if settings.DISABLE_EMAIL_DELIVERY:
         logger.info("Email delivery disabled - skipping email to %s", to)
@@ -197,6 +206,7 @@ def send_email(
             subject=subject,
             stage=stage,
             status="skipped",
+            provider=email_provider,
             error_message="email_delivery_disabled",
             application_id=application_id,
             test_session_id=test_session_id,
@@ -207,14 +217,15 @@ def send_email(
         )
         return False
 
-    if not settings.SMTP_USER or not smtp_pass:
-        logger.warning("SMTP not configured - skipping email to %s", to)
+    if email_provider == "resend" and not resend_configured:
+        logger.warning("Resend not configured - skipping email to %s", to)
         _log_email(
             to=to,
             subject=subject,
             stage=stage,
             status="skipped",
-            error_message="smtp_not_configured",
+            provider="resend",
+            error_message="resend_not_configured",
             application_id=application_id,
             test_session_id=test_session_id,
             coding_session_id=coding_session_id,
@@ -226,7 +237,33 @@ def send_email(
 
     html = _wrap_body(body_html, company) if wrap else body_html
 
-    try:
+    def _send_via_resend() -> tuple[bool, str | None, str | None]:
+        headers = {
+            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        message_hash = hashlib.sha256(f"{to}|{subject}".encode("utf-8")).hexdigest()[:12]
+        idempotency_bits = [
+            "hiresy",
+            stage or "general",
+            str(application_id or "na"),
+            str(test_session_id or coding_session_id or live_session_id or verification_case_id or "na"),
+            message_hash,
+        ]
+        headers["Idempotency-Key"] = "-".join(idempotency_bits)
+        payload = {
+            "from": settings.resend_from_addr,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+        res = requests.post(RESEND_API_URL, headers=headers, json=payload, timeout=RESEND_TIMEOUT)
+        if res.status_code >= 400:
+            raise RuntimeError(f"resend_http_{res.status_code}: {res.text[:500]}")
+        data = res.json() if res.content else {}
+        return True, data.get("id"), None
+
+    def _send_via_smtp() -> None:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = f"{company} <{settings.smtp_from_addr}>"
@@ -241,42 +278,85 @@ def send_email(
                 server.sendmail(settings.smtp_from_addr, to, msg.as_string())
         except Exception as ssl_exc:
             send_errors.append(f"smtp_ssl_465_ipv4: {ssl_exc}")
-            with _connect_smtp_starttls_ipv4(SMTP_HOST, SMTP_STARTTLS_PORT, context) as server:
-                server.login(settings.SMTP_USER, smtp_pass)
-                server.sendmail(settings.smtp_from_addr, to, msg.as_string())
+            try:
+                with _connect_smtp_starttls_ipv4(SMTP_HOST, SMTP_STARTTLS_PORT, context) as server:
+                    server.login(settings.SMTP_USER, smtp_pass)
+                    server.sendmail(settings.smtp_from_addr, to, msg.as_string())
+            except Exception as starttls_exc:
+                raise RuntimeError("; ".join([*send_errors, f"smtp_starttls_587_ipv4: {starttls_exc}"]))
 
-        logger.info("Email sent -> %s | %s", to, subject)
-        _log_email(
-            to=to,
-            subject=subject,
-            stage=stage,
-            status="sent",
-            application_id=application_id,
-            test_session_id=test_session_id,
-            coding_session_id=coding_session_id,
-            live_session_id=live_session_id,
-            verification_case_id=verification_case_id,
-            meta=meta,
-        )
-        return True
-    except Exception as exc:
-        if "send_errors" in locals() and send_errors:
-            exc = RuntimeError("; ".join([*send_errors, f"smtp_starttls_587_ipv4: {exc}"]))
-        logger.error("Email failed -> %s | %s | %s", to, subject, exc)
-        _log_email(
-            to=to,
-            subject=subject,
-            stage=stage,
-            status="failed",
-            error_message=str(exc),
-            application_id=application_id,
-            test_session_id=test_session_id,
-            coding_session_id=coding_session_id,
-            live_session_id=live_session_id,
-            verification_case_id=verification_case_id,
-            meta=meta,
-        )
-        return False
+    providers: list[str] = []
+    if email_provider == "resend":
+        providers = ["resend"]
+    elif email_provider == "smtp":
+        providers = ["smtp"]
+    else:
+        providers = ["resend", "smtp"] if resend_configured else ["smtp"]
+
+    errors: list[str] = []
+    for provider in providers:
+        try:
+            if provider == "resend":
+                if not resend_configured:
+                    errors.append("resend_not_configured")
+                    continue
+                _, resend_id, _ = _send_via_resend()
+                logger.info("Email sent via Resend -> %s | %s | %s", to, subject, resend_id)
+                meta_with_provider = {**(meta or {}), "resend_id": resend_id}
+                _log_email(
+                    to=to,
+                    subject=subject,
+                    stage=stage,
+                    status="sent",
+                    provider="resend",
+                    application_id=application_id,
+                    test_session_id=test_session_id,
+                    coding_session_id=coding_session_id,
+                    live_session_id=live_session_id,
+                    verification_case_id=verification_case_id,
+                    meta=meta_with_provider,
+                )
+                return True
+
+            if not smtp_configured:
+                errors.append("smtp_not_configured")
+                continue
+            _send_via_smtp()
+            logger.info("Email sent via SMTP -> %s | %s", to, subject)
+            _log_email(
+                to=to,
+                subject=subject,
+                stage=stage,
+                status="sent",
+                provider="smtp_ssl_gmail",
+                application_id=application_id,
+                test_session_id=test_session_id,
+                coding_session_id=coding_session_id,
+                live_session_id=live_session_id,
+                verification_case_id=verification_case_id,
+                meta=meta,
+            )
+            return True
+        except Exception as exc:
+            errors.append(f"{provider}: {exc}")
+
+    error_message = "; ".join(errors) or "email_provider_not_configured"
+    logger.error("Email failed -> %s | %s | %s", to, subject, error_message)
+    _log_email(
+        to=to,
+        subject=subject,
+        stage=stage,
+        status="failed",
+        provider=",".join(providers) or email_provider,
+        error_message=error_message,
+        application_id=application_id,
+        test_session_id=test_session_id,
+        coding_session_id=coding_session_id,
+        live_session_id=live_session_id,
+        verification_case_id=verification_case_id,
+        meta=meta,
+    )
+    return False
 
 
 # ── Candidate Stage Result Emails ──────────────────────────────────

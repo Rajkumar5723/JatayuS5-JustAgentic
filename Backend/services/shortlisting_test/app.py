@@ -244,7 +244,10 @@ def _send_test_email(test: TestSession) -> bool:
 def health():
     return {
         "status": "ok", "model": settings.GROQ_MODEL,
-        "smtp": bool(settings.SMTP_USER), "groq": bool(settings.GROQ_API_KEY),
+        "smtp": bool(settings.SMTP_USER),
+        "resend": bool(settings.RESEND_API_KEY),
+        "email_provider": settings.email_provider,
+        "groq": bool(settings.GROQ_API_KEY),
         "frontend_url": settings.public_frontend_url,
         "db_mode": settings.DATABASE_MODE,
     }
