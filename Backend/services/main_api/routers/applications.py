@@ -22,6 +22,11 @@ from core.document_pipeline import extract_document_text, store_document_bytes
 from core.email_utils import send_api_status_update_email
 from core.evidence_storage import EvidenceStorageService
 from core.models import Application, ApplicationDocument, Job, TestSession, CodingSession
+from core.profile_enrichment import (
+    fetch_github_light as _shared_fetch_github_light,
+    fetch_leetcode_light as _shared_fetch_leetcode_light,
+    normalize_eval_profiles,
+)
 from core.s3_manager import get_s3_manager
 
 router = APIRouter(tags=["applications"])
@@ -60,94 +65,11 @@ def _score_from_skill_overlap(resume_text: str, job_description: str) -> tuple[i
 
 
 def _fetch_github_light(github_url: str) -> dict[str, Any]:
-    username = _extract_username(r"github\.com/([a-zA-Z0-9-]+)", github_url)
-    if not username:
-        return {}
-    headers = {"Authorization": f"token {settings.GITHUB_TOKEN}"} if settings.GITHUB_TOKEN else {}
-    try:
-        profile_res = requests.get(f"https://api.github.com/users/{username}", headers=headers, timeout=8)
-        repos_res = requests.get(
-            f"https://api.github.com/users/{username}/repos?sort=pushed&per_page=30",
-            headers=headers,
-            timeout=10,
-        )
-        profile = profile_res.json() if profile_res.ok else {}
-        repos = repos_res.json() if repos_res.ok and isinstance(repos_res.json(), list) else []
-        total_stars = sum(int(repo.get("stargazers_count") or 0) for repo in repos)
-        languages: dict[str, int] = {}
-        for repo in repos:
-            lang = repo.get("language") or "Other"
-            languages[lang] = languages.get(lang, 0) + 1
-        return {
-            "username": username,
-            "display_name": profile.get("name") or username,
-            "public_repos": profile.get("public_repos", len(repos)),
-            "total_repos": len(repos),
-            "total_stars": total_stars,
-            "followers": profile.get("followers", 0),
-            "following": profile.get("following", 0),
-            "languages": languages,
-            "top_repos": [
-                {
-                    "name": repo.get("name"),
-                    "stars": repo.get("stargazers_count", 0),
-                    "forks": repo.get("forks_count", 0),
-                    "language": repo.get("language"),
-                    "description": repo.get("description") or "",
-                }
-                for repo in sorted(repos, key=lambda r: r.get("stargazers_count", 0), reverse=True)[:8]
-            ],
-            "repo_types": {
-                "original": sum(1 for repo in repos if not repo.get("fork")),
-                "forked": sum(1 for repo in repos if repo.get("fork")),
-            },
-        }
-    except Exception as exc:
-        logger.warning("Light GitHub fetch failed for %s: %s", username, exc)
-        return {"username": username}
+    return _shared_fetch_github_light(github_url)
 
 
 def _fetch_leetcode_light(leetcode_url: str) -> dict[str, Any]:
-    username = _extract_username(r"leetcode\.com/(?:u/)?([a-zA-Z0-9_-]+)", leetcode_url)
-    if not username:
-        return {}
-    query = """
-query getUserProfile($username: String!) {
-  matchedUser(username: $username) {
-    username
-    profile { ranking }
-    submitStatsGlobal { acSubmissionNum { difficulty count } }
-  }
-}
-"""
-    try:
-        response = requests.post(
-            "https://leetcode.com/graphql",
-            json={"query": query, "variables": {"username": username}},
-            headers={
-                "Content-Type": "application/json",
-                "Referer": "https://leetcode.com",
-                "User-Agent": "Mozilla/5.0",
-            },
-            timeout=12,
-        )
-        response.raise_for_status()
-        user = (response.json().get("data") or {}).get("matchedUser") or {}
-        stats = user.get("submitStatsGlobal", {}).get("acSubmissionNum", [])
-        solved = {item.get("difficulty"): int(item.get("count") or 0) for item in stats}
-        total = solved.get("All", 0) or sum(count for key, count in solved.items() if key != "All")
-        return {
-            "username": username,
-            "display_name": user.get("username") or username,
-            "total": total,
-            "easy": solved.get("Easy", 0),
-            "medium": solved.get("Medium", 0),
-            "hard": solved.get("Hard", 0),
-            "ranking": (user.get("profile") or {}).get("ranking"),
-        }
-    except Exception as exc:
-        logger.warning("Light LeetCode fetch failed for %s: %s", username, exc)
-        return {"username": username, "display_name": username, "total": 0, "easy": 0, "medium": 0, "hard": 0}
+    return _shared_fetch_leetcode_light(leetcode_url)
 
 
 def _run_lightweight_evaluation(eval_payload: dict[str, Any]) -> dict[str, Any]:
@@ -531,6 +453,11 @@ def _trigger_evaluation(app_id: int) -> None:
 
         result = _run_evaluation(eval_payload)
         if result:
+            result = normalize_eval_profiles(
+                result,
+                github_url=app_entry.github_url,
+                leetcode_url=app_entry.leetcode_url,
+            )
             invite_result = _ensure_initial_shortlist_invite(db, app_entry, job, result)
             result.update(invite_result)
             app_entry.eval_score          = str(result.get("final_score", ""))
@@ -762,20 +689,29 @@ def get_application_eval(app_id: int, db: Session = Depends(get_db)):
     if not app_entry:
         raise HTTPException(404, "Application not found")
     if not app_entry.eval_data:
-        return {
+        payload = normalize_eval_profiles(
+            {},
+            github_url=app_entry.github_url,
+            leetcode_url=app_entry.leetcode_url,
+        )
+        payload.update({
             "application_id": app_id,
             "eval_summary": app_entry.eval_summary or "",
             "summary": app_entry.eval_summary or "",
-            "component_scores": {},
-            "github_raw": {},
-            "leetcode_raw": {},
-        }
+        })
+        payload.setdefault("component_scores", {})
+        return payload
 
     try:
         payload = json.loads(app_entry.eval_data)
     except Exception:
         payload = {"raw": app_entry.eval_data}
 
+    payload = normalize_eval_profiles(
+        payload,
+        github_url=app_entry.github_url,
+        leetcode_url=app_entry.leetcode_url,
+    )
     payload["application_id"] = app_id
     payload["eval_summary"] = app_entry.eval_summary or payload.get("summary", "")
     payload["summary"] = payload.get("summary") or app_entry.eval_summary or ""

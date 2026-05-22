@@ -8,12 +8,7 @@ import hashlib
 import json
 import logging
 import os
-import smtplib
-import socket
-import ssl
 import requests
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 from core.config import settings
 from core.database import SessionLocal
@@ -21,59 +16,7 @@ from core.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 _LOGO_CACHE: str | None = None
-SMTP_HOST = "smtp.gmail.com"
-SMTP_SSL_PORT = 465
-SMTP_STARTTLS_PORT = 587
-SMTP_TIMEOUT = 20
-RESEND_API_URL = "https://api.resend.com/emails"
-RESEND_TIMEOUT = 20
-
-
-def _ipv4_sockaddrs(host: str, port: int) -> list[tuple]:
-    return [
-        info[4]
-        for info in socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
-    ]
-
-
-def _connect_smtp_ssl_ipv4(host: str, port: int, context: ssl.SSLContext) -> smtplib.SMTP_SSL:
-    last_exc: Exception | None = None
-    for sockaddr in _ipv4_sockaddrs(host, port):
-        try:
-            raw_sock = socket.create_connection(sockaddr, timeout=SMTP_TIMEOUT)
-            ssl_sock = context.wrap_socket(raw_sock, server_hostname=host)
-            server = smtplib.SMTP_SSL(timeout=SMTP_TIMEOUT, context=context)
-            server.sock = ssl_sock
-            server.file = ssl_sock.makefile("rb")
-            server._host = host
-            code, msg = server.getreply()
-            if code != 220:
-                server.close()
-                raise smtplib.SMTPConnectError(code, msg)
-            return server
-        except Exception as exc:
-            last_exc = exc
-    raise last_exc or OSError("No IPv4 SMTP SSL address available")
-
-
-def _connect_smtp_starttls_ipv4(host: str, port: int, context: ssl.SSLContext) -> smtplib.SMTP:
-    last_exc: Exception | None = None
-    for sockaddr in _ipv4_sockaddrs(host, port):
-        server = smtplib.SMTP(timeout=SMTP_TIMEOUT)
-        try:
-            server.connect(sockaddr[0], port)
-            server._host = host
-            server.ehlo()
-            server.starttls(context=context)
-            server.ehlo()
-            return server
-        except Exception as exc:
-            last_exc = exc
-            try:
-                server.close()
-            except Exception:
-                pass
-    raise last_exc or OSError("No IPv4 SMTP STARTTLS address available")
+BREVO_TIMEOUT = 20
 
 
 def _load_logo() -> str:
@@ -140,7 +83,7 @@ def _log_email(
     subject: str,
     stage: str | None,
     status: str,
-    provider: str = "smtp_ssl_gmail",
+    provider: str = "brevo",
     error_message: str | None = None,
     application_id: int | None = None,
     test_session_id: int | None = None,
@@ -177,6 +120,26 @@ def _log_email(
         logger.warning("Email log write failed for %s | %s | %s", to, subject, exc)
 
 
+def _email_idempotency_key(
+    *,
+    to: str,
+    subject: str,
+    stage: str | None,
+    application_id: int | None,
+    session_id: int | None,
+) -> str:
+    message_hash = hashlib.sha256(f"{to}|{subject}".encode("utf-8")).hexdigest()[:12]
+    return "-".join(
+        [
+            "hiresy",
+            stage or "general",
+            str(application_id or "na"),
+            str(session_id or "na"),
+            message_hash,
+        ]
+    )
+
+
 def send_email(
     to: str,
     subject: str,
@@ -192,13 +155,6 @@ def send_email(
     verification_case_id: int | None = None,
     meta: dict | None = None,
 ) -> bool:
-    smtp_pass = (settings.SMTP_PASS or "").strip()
-    if " " in smtp_pass and len(smtp_pass.replace(" ", "")) == 16:
-        smtp_pass = smtp_pass.replace(" ", "")
-    email_provider = settings.email_provider
-    resend_configured = bool(settings.RESEND_API_KEY)
-    smtp_configured = bool(settings.SMTP_USER and smtp_pass)
-
     if settings.DISABLE_EMAIL_DELIVERY:
         logger.info("Email delivery disabled - skipping email to %s", to)
         _log_email(
@@ -206,7 +162,7 @@ def send_email(
             subject=subject,
             stage=stage,
             status="skipped",
-            provider=email_provider,
+            provider="brevo",
             error_message="email_delivery_disabled",
             application_id=application_id,
             test_session_id=test_session_id,
@@ -217,15 +173,24 @@ def send_email(
         )
         return False
 
-    if email_provider == "resend" and not resend_configured:
-        logger.warning("Resend not configured - skipping email to %s", to)
+    brevo_api_key = (settings.BREVO_API or "").strip()
+    sender_email = settings.brevo_sender_email
+    sender_name = settings.brevo_sender_name or company
+    if not brevo_api_key or not sender_email:
+        missing = []
+        if not brevo_api_key:
+            missing.append("BREVO_API")
+        if not sender_email:
+            missing.append("BREVO_SENDER_EMAIL")
+        error_message = f"brevo_not_configured: missing {', '.join(missing)}"
+        logger.error("Email failed -> %s | %s | %s", to, subject, error_message)
         _log_email(
             to=to,
             subject=subject,
             stage=stage,
-            status="skipped",
-            provider="resend",
-            error_message="resend_not_configured",
+            status="failed",
+            provider="brevo",
+            error_message=error_message,
             application_id=application_id,
             test_session_id=test_session_id,
             coding_session_id=coding_session_id,
@@ -236,127 +201,68 @@ def send_email(
         return False
 
     html = _wrap_body(body_html, company) if wrap else body_html
-
-    def _send_via_resend() -> tuple[bool, str | None, str | None]:
-        headers = {
-            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        message_hash = hashlib.sha256(f"{to}|{subject}".encode("utf-8")).hexdigest()[:12]
-        idempotency_bits = [
-            "hiresy",
-            stage or "general",
-            str(application_id or "na"),
-            str(test_session_id or coding_session_id or live_session_id or verification_case_id or "na"),
-            message_hash,
-        ]
-        headers["Idempotency-Key"] = "-".join(idempotency_bits)
-        payload = {
-            "from": settings.resend_from_addr,
-            "to": [to],
-            "subject": subject,
-            "html": html,
-        }
-        res = requests.post(RESEND_API_URL, headers=headers, json=payload, timeout=RESEND_TIMEOUT)
+    session_id = test_session_id or coding_session_id or live_session_id or verification_case_id
+    headers = {
+        "accept": "application/json",
+        "api-key": brevo_api_key,
+        "content-type": "application/json",
+        "Idempotency-Key": _email_idempotency_key(
+            to=to,
+            subject=subject,
+            stage=stage,
+            application_id=application_id,
+            session_id=session_id,
+        ),
+    }
+    recipient: dict[str, str] = {"email": to}
+    candidate_name = str((meta or {}).get("candidate_name") or "").strip()
+    if candidate_name:
+        recipient["name"] = candidate_name
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [recipient],
+        "subject": subject,
+        "htmlContent": html,
+    }
+    try:
+        res = requests.post(settings.BREVO_API_URL, headers=headers, json=payload, timeout=BREVO_TIMEOUT)
         if res.status_code >= 400:
-            raise RuntimeError(f"resend_http_{res.status_code}: {res.text[:500]}")
+            raise RuntimeError(f"brevo_http_{res.status_code}: {res.text[:500]}")
         data = res.json() if res.content else {}
-        return True, data.get("id"), None
-
-    def _send_via_smtp() -> None:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"{company} <{settings.smtp_from_addr}>"
-        msg["To"] = to
-        msg.attach(MIMEText(html, "html"))
-
-        context = ssl.create_default_context()
-        send_errors: list[str] = []
-        try:
-            with _connect_smtp_ssl_ipv4(SMTP_HOST, SMTP_SSL_PORT, context) as server:
-                server.login(settings.SMTP_USER, smtp_pass)
-                server.sendmail(settings.smtp_from_addr, to, msg.as_string())
-        except Exception as ssl_exc:
-            send_errors.append(f"smtp_ssl_465_ipv4: {ssl_exc}")
-            try:
-                with _connect_smtp_starttls_ipv4(SMTP_HOST, SMTP_STARTTLS_PORT, context) as server:
-                    server.login(settings.SMTP_USER, smtp_pass)
-                    server.sendmail(settings.smtp_from_addr, to, msg.as_string())
-            except Exception as starttls_exc:
-                raise RuntimeError("; ".join([*send_errors, f"smtp_starttls_587_ipv4: {starttls_exc}"]))
-
-    providers: list[str] = []
-    if email_provider == "resend":
-        providers = ["resend"]
-    elif email_provider == "smtp":
-        providers = ["smtp"]
-    else:
-        providers = ["resend", "smtp"] if resend_configured else ["smtp"]
-
-    errors: list[str] = []
-    for provider in providers:
-        try:
-            if provider == "resend":
-                if not resend_configured:
-                    errors.append("resend_not_configured")
-                    continue
-                _, resend_id, _ = _send_via_resend()
-                logger.info("Email sent via Resend -> %s | %s | %s", to, subject, resend_id)
-                meta_with_provider = {**(meta or {}), "resend_id": resend_id}
-                _log_email(
-                    to=to,
-                    subject=subject,
-                    stage=stage,
-                    status="sent",
-                    provider="resend",
-                    application_id=application_id,
-                    test_session_id=test_session_id,
-                    coding_session_id=coding_session_id,
-                    live_session_id=live_session_id,
-                    verification_case_id=verification_case_id,
-                    meta=meta_with_provider,
-                )
-                return True
-
-            if not smtp_configured:
-                errors.append("smtp_not_configured")
-                continue
-            _send_via_smtp()
-            logger.info("Email sent via SMTP -> %s | %s", to, subject)
-            _log_email(
-                to=to,
-                subject=subject,
-                stage=stage,
-                status="sent",
-                provider="smtp_ssl_gmail",
-                application_id=application_id,
-                test_session_id=test_session_id,
-                coding_session_id=coding_session_id,
-                live_session_id=live_session_id,
-                verification_case_id=verification_case_id,
-                meta=meta,
-            )
-            return True
-        except Exception as exc:
-            errors.append(f"{provider}: {exc}")
-
-    error_message = "; ".join(errors) or "email_provider_not_configured"
-    logger.error("Email failed -> %s | %s | %s", to, subject, error_message)
-    _log_email(
-        to=to,
-        subject=subject,
-        stage=stage,
-        status="failed",
-        provider=",".join(providers) or email_provider,
-        error_message=error_message,
-        application_id=application_id,
-        test_session_id=test_session_id,
-        coding_session_id=coding_session_id,
-        live_session_id=live_session_id,
-        verification_case_id=verification_case_id,
-        meta=meta,
-    )
-    return False
+        message_id = data.get("messageId") or data.get("message_id") or data.get("id")
+        logger.info("Email sent via Brevo -> %s | %s | %s", to, subject, message_id)
+        _log_email(
+            to=to,
+            subject=subject,
+            stage=stage,
+            status="sent",
+            provider="brevo",
+            application_id=application_id,
+            test_session_id=test_session_id,
+            coding_session_id=coding_session_id,
+            live_session_id=live_session_id,
+            verification_case_id=verification_case_id,
+            meta={**(meta or {}), "brevo_message_id": message_id},
+        )
+        return True
+    except Exception as exc:
+        error_message = str(exc) or "brevo_send_failed"
+        logger.error("Email failed -> %s | %s | %s", to, subject, error_message)
+        _log_email(
+            to=to,
+            subject=subject,
+            stage=stage,
+            status="failed",
+            provider="brevo",
+            error_message=error_message,
+            application_id=application_id,
+            test_session_id=test_session_id,
+            coding_session_id=coding_session_id,
+            live_session_id=live_session_id,
+            verification_case_id=verification_case_id,
+            meta=meta,
+        )
+        return False
 
 
 # ── Candidate Stage Result Emails ──────────────────────────────────

@@ -49,7 +49,7 @@ faiss-cpu>=1.8.0
 numpy>=1.26.0
 
 # ── Email ─────────────────────────────────────────────────────
-# Uses stdlib smtplib — no extra packages needed
+# Uses Brevo HTTP API through requests.
 
 # ── LinkedIn (optional) ───────────────────────────────────────
 # selenium>=4.18.0           # uncomment if using linkedin_scraper

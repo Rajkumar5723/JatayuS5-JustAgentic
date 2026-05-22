@@ -60,13 +60,11 @@ class Settings(BaseSettings):
     LI_PASSWORD: str = ""
 
     # ── Email ─────────────────────────────────────────────────
-    SMTP_USER: str = ""
-    SMTP_PASS: str = ""
-    SMTP_FROM: str = ""
     DISABLE_EMAIL_DELIVERY: bool = False
-    EMAIL_PROVIDER: str = "auto"  # auto | resend | smtp
-    RESEND_API_KEY: str = ""
-    RESEND_FROM: str = ""
+    BREVO_API: str = ""
+    BREVO_API_URL: str = "https://api.brevo.com/v3/smtp/email"
+    BREVO_SENDER_EMAIL: str = ""
+    BREVO_SENDER_NAME: str = "Hiresy"
 
     # ── App ───────────────────────────────────────────────────
     FRONTEND_URL: str = "http://localhost:5173"
@@ -99,17 +97,12 @@ class Settings(BaseSettings):
     )
 
     @property
-    def smtp_from_addr(self) -> str:
-        return self.SMTP_FROM or self.SMTP_USER
+    def brevo_sender_email(self) -> str:
+        return (self.BREVO_SENDER_EMAIL or "").strip()
 
     @property
-    def email_provider(self) -> str:
-        provider = (self.EMAIL_PROVIDER or "auto").strip().lower()
-        return provider if provider in {"auto", "resend", "smtp"} else "auto"
-
-    @property
-    def resend_from_addr(self) -> str:
-        return self.RESEND_FROM or "Hiresy <onboarding@resend.dev>"
+    def brevo_sender_name(self) -> str:
+        return (self.BREVO_SENDER_NAME or "Hiresy").strip() or "Hiresy"
 
     def _normalize_sqlite_url(self, url: str) -> str:
         value = str(url or "").strip()

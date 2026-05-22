@@ -83,6 +83,16 @@ function withImageSource(value) {
     return `data:image/jpeg;base64,${value}`;
 }
 
+function evidenceImage(item) {
+    return item?.image ||
+        item?.image_b64 ||
+        item?.url ||
+        item?.storage_url ||
+        item?.download_url ||
+        item?.presigned_url ||
+        "";
+}
+
 function toneFor(status) {
     return STATUS_TONES[status] || STATUS_TONES.pending;
 }
@@ -109,7 +119,7 @@ function flattenRoomFrames(roomScans) {
             return (scan.frames || []).map((frame) => ({
                 type: scan.scan_type || "room_scan",
                 timestamp: frame.captured_at || scan.created_at,
-                image: frame.url,
+                image: evidenceImage(frame),
                 note: frame.has_violation
                     ? `Potential issue flagged${(scan.suspicious_items || []).length ? `: ${(scan.suspicious_items || []).join(", ")}` : ""}`
                     : `Clean frame${scan.verdict ? ` - ${scan.verdict}` : ""}`,
@@ -130,7 +140,7 @@ function flattenIncidentEvidence(incidents) {
     return (incidents || []).flatMap((incident) =>
         (incident.evidence_files || []).map((file, index) => ({
             timestamp: incident.created_at,
-            image: file.url,
+            image: evidenceImage(file),
             note: `${incident.incident_type || "incident"} evidence ${index + 1}`,
         }))
     );
@@ -252,17 +262,17 @@ function EvidenceSection({ stage }) {
     const roomFrames = flattenRoomFrames(evidence.room_scans);
     const webcam = evidence.webcam_snapshots.map((item) => ({
         ...item,
-        image: item.image_b64,
+        image: evidenceImage(item),
         note: item.event_type || "Candidate webcam capture",
     }));
     const screens = evidence.screen_snapshots.map((item) => ({
         ...item,
-        image: item.image_b64,
+        image: evidenceImage(item),
         note: item.event_type || "Screen snapshot",
     }));
     const meet = evidence.meet_snapshots.map((item) => ({
         ...item,
-        image: item.image_b64,
+        image: evidenceImage(item),
         note: item.event_type || "Meet snapshot",
     }));
     const incidentFiles = flattenIncidentEvidence(evidence.malpractice_incidents);

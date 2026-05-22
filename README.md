@@ -49,7 +49,7 @@ The repo is a monorepo with two deploy roots:
    - `AWS_S3_BUCKET`
    - `S3_EVIDENCE_BUCKET`
    - `GROQ_API_KEY`
-   - `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` or `RESEND_API_KEY`, `RESEND_FROM`
+   - `BREVO_API`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
    - `JAAS_APP_ID`
    - `LI_CLIENT_ID`, `LI_CLIENT_SECRET`, `LI_REDIRECT_URI`, `LI_SCOPE`
    - `QR_JWT_SECRET_KEY`
@@ -152,7 +152,7 @@ Because Vite proxies `/api`, `/test-api`, `/coding-api`, and `/livehr-api`, one 
 Before pushing publicly:
 
 - confirm `.env` is not committed
-- confirm AWS, SMTP, LinkedIn, GitHub, and Groq secrets are rotated if they were ever exposed
+- confirm AWS, Brevo, LinkedIn, GitHub, and Groq secrets are rotated if they were ever exposed
 - remove local logs, caches, generated uploads, and test artifacts
 - keep `.env.example` as the only tracked env template
 
@@ -289,12 +289,9 @@ Set these on every backend service:
 - `GROQ_MODEL`
 - `GROQ_MODEL_VISION`
 - `GROQ_MODEL_AUDIO`
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM`
-- `EMAIL_PROVIDER` (`auto`, `resend`, or `smtp`)
-- `RESEND_API_KEY`
-- `RESEND_FROM`
+- `BREVO_API`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
 - `JAAS_APP_ID`
 - `LI_CLIENT_ID`
 - `LI_CLIENT_SECRET`

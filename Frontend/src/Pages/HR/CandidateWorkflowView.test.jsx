@@ -236,7 +236,7 @@ describe("CandidateWorkflowView", () => {
                                     {
                                         frame_index: 0,
                                         has_violation: false,
-                                        url: "https://example.com/room-frame.jpg",
+                                        storage_url: "https://example.com/room-frame.jpg",
                                     },
                                 ],
                                 suspicious_items: [],
@@ -244,13 +244,19 @@ describe("CandidateWorkflowView", () => {
                         ],
                         webcam_snapshots: [
                             {
-                                image_b64: "https://example.com/webcam.jpg",
+                                download_url: "https://example.com/webcam.jpg",
                                 event_type: "selfie_captured",
                                 timestamp: "2026-05-19T10:05:00Z",
                             },
                         ],
                         screen_snapshots: [],
-                        meet_snapshots: [],
+                        meet_snapshots: [
+                            {
+                                presigned_url: "https://example.com/live-room.jpg",
+                                event_type: "meet_alert",
+                                timestamp: "2026-05-19T10:05:30Z",
+                            },
+                        ],
                         device_info: [],
                         suspicious_events: [],
                         ai_alerts: [],
@@ -260,7 +266,7 @@ describe("CandidateWorkflowView", () => {
                                 created_at: "2026-05-19T10:06:00Z",
                                 evidence_files: [
                                     {
-                                        url: "https://example.com/incident.jpg",
+                                        presigned_url: "https://example.com/incident.jpg",
                                     },
                                 ],
                             },
@@ -295,6 +301,7 @@ describe("CandidateWorkflowView", () => {
         await userEvent.click(screen.getByRole("button", { name: "Evidence" }));
         expect(screen.getByText("Clean frame - pass")).toBeInTheDocument();
         expect(screen.getByText("selfie_captured")).toBeInTheDocument();
+        expect(screen.getByText("meet_alert")).toBeInTheDocument();
         expect(screen.getByText("tab_hidden evidence 1")).toBeInTheDocument();
     });
 

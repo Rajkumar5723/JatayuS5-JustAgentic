@@ -39,12 +39,12 @@ envVarGroups:
         sync: false
       - key: LI_SCOPE
         value: openid profile w_member_social
-      - key: SMTP_USER
+      - key: BREVO_API
         sync: false
-      - key: SMTP_PASS
+      - key: BREVO_SENDER_EMAIL
         sync: false
-      - key: SMTP_FROM
-        sync: false
+      - key: BREVO_SENDER_NAME
+        value: Hiresy
       - key: QR_JWT_SECRET_KEY
         sync: false
       - key: SHORTLIST_MIN_SCORE

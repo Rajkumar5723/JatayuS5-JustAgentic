@@ -233,6 +233,22 @@ const Tip = ({ active, payload, label }) => {
     );
 };
 
+function cleanProfileUrl(value) {
+    const cleaned = String(value || "").trim();
+    return ["", "na", "n/a", "none", "null", "-", "--"].includes(cleaned.toLowerCase()) ? "" : cleaned;
+}
+
+function usernameFromUrl(pattern, value) {
+    const match = cleanProfileUrl(value).match(pattern);
+    return match?.[1]?.replace(/\/+$/, "") || "";
+}
+
+function withProtocol(value) {
+    const cleaned = cleanProfileUrl(value);
+    if (!cleaned) return "";
+    return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
+}
+
 /* ── Score Ring (Recharts RadialBar) ── */
 function ScoreArc({ value }) {
     const color = scoreColor(value);
@@ -280,8 +296,16 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
     catch { return null; }
 
     const cs = ev.component_scores || {};
-    const gh = ev.github_raw || {};
-    const lc = ev.leetcode_raw || {};
+    const candidateGithubUrl = withProtocol(candidate?.github_url || ev.github_url);
+    const candidateLeetcodeUrl = withProtocol(candidate?.leetcode_url || ev.leetcode_url);
+    const ghUsername = (ev.github_raw || {}).username || usernameFromUrl(/github\.com\/([a-zA-Z0-9-]+)/i, candidateGithubUrl);
+    const lcUsername = (ev.leetcode_raw || {}).username || usernameFromUrl(/leetcode\.com\/(?:u\/)?([a-zA-Z0-9_-]+)/i, candidateLeetcodeUrl);
+    const gh = { username: ghUsername, ...(ev.github_raw || {}) };
+    const lc = { username: lcUsername, ...(ev.leetcode_raw || {}) };
+    const hasGithubProfile = Boolean(gh.username || candidateGithubUrl);
+    const hasLeetcodeProfile = Boolean(lc.username || candidateLeetcodeUrl);
+    const githubHref = candidateGithubUrl || (gh.username ? `https://github.com/${gh.username}` : "");
+    const leetcodeHref = candidateLeetcodeUrl || (lc.username ? `https://leetcode.com/u/${lc.username}` : "");
     const overall = Math.round(ev.final_score || 0);
     const rec = ev.hiring_recommendation || "—";
     const recColor = { "Strong Hire": "#92ba00", "Hire": "#006bef", "Borderline": "#cd8200", "No Hire": "#ff4400" }[rec] || "#888";
@@ -408,14 +432,14 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
             <div className="ep-section-label">
                 <span className="ep-section-num">02</span>
                 <span className="ep-section-title">GitHub Activity</span>
-                {gh.username && (
-                    <a href={`https://github.com/${gh.username}`} target="_blank" rel="noreferrer" className="ep-ext">
-                        @{gh.username} <FiExternalLink size={11} />
+                {hasGithubProfile && githubHref && (
+                    <a href={githubHref} target="_blank" rel="noreferrer" className="ep-ext">
+                        @{gh.username || "GitHub"} <FiExternalLink size={11} />
                     </a>
                 )}
             </div>
 
-            {gh.username ? (
+            {hasGithubProfile ? (
                 <div className="ep-row ep-row-github">
                     {/* Stats card */}
                     <GlassCard className="gc-gh-stats" style={{ background: "linear-gradient(160deg, #0f0800 0%, #1a0a00 50%, #0d0d0d 100%)" }}>
@@ -523,14 +547,14 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
             <div className="ep-section-label">
                 <span className="ep-section-num">03</span>
                 <span className="ep-section-title">LeetCode Performance</span>
-                {lc.username && (
-                    <a href={`https://leetcode.com/${lc.username}`} target="_blank" rel="noreferrer" className="ep-ext">
-                        @{lc.username} <FiExternalLink size={11} />
+                {hasLeetcodeProfile && leetcodeHref && (
+                    <a href={leetcodeHref} target="_blank" rel="noreferrer" className="ep-ext">
+                        @{lc.username || "LeetCode"} <FiExternalLink size={11} />
                     </a>
                 )}
             </div>
 
-            {lc.total ? (
+            {hasLeetcodeProfile ? (
                 <div className="ep-row ep-row-leetcode">
                     {/* Donut */}
                     <GlassCard className="gc-lc-donut" style={{ background: "linear-gradient(160deg, #050010 0%, #0a0020 50%, #0d0d0d 100%)" }}>
@@ -615,8 +639,8 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
                         ))}
                     </div>
                     <div className="gc-tab-body">
-                        {tab === "github" && (gh.username ? <GitHubAnalytics data={gh} aiNote={cs.github?.reasoning} /> : <div className="ep-no-profile"><FiGithub size={24} /><p>No GitHub profile provided</p></div>)}
-                        {tab === "leetcode" && (lc.total ? <LeetCodeAnalytics data={lc} aiNote={cs.leetcode?.reasoning} /> : <div className="ep-no-profile"><FiCode size={24} /><p>No LeetCode profile submitted</p></div>)}
+                        {tab === "github" && (hasGithubProfile ? <GitHubAnalytics data={gh} aiNote={cs.github?.reasoning || "GitHub profile link was captured; detailed analysis may still be pending."} /> : <div className="ep-no-profile"><FiGithub size={24} /><p>No GitHub profile provided</p></div>)}
+                        {tab === "leetcode" && (hasLeetcodeProfile ? <LeetCodeAnalytics data={lc} aiNote={cs.leetcode?.reasoning || "LeetCode profile link was captured; detailed analysis may still be pending."} /> : <div className="ep-no-profile"><FiCode size={24} /><p>No LeetCode profile submitted</p></div>)}
                         {tab === "linkedin" && <LinkedInAnalytics score={cs.linkedin?.score || 0} reasoning={cs.linkedin?.reasoning} candidate={candidate || {}} linkedinUrl={candidate?.linkedin_url} />}
                         {tab === "resume" && (
                             <div className="gc-resume">

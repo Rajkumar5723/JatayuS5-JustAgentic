@@ -191,7 +191,12 @@ export default function JobApplication() {
             setResumeText(extracted.resume_text || "");
             setForm((f) => ({
                 ...f,
-                ...Object.fromEntries(Object.entries(extracted).filter(([_, v]) => v?.toString().trim())),
+                ...Object.fromEntries(
+                    Object.entries(extracted).filter(([key, v]) => {
+                        if (!v?.toString().trim()) return false;
+                        return !f[key]?.toString().trim();
+                    })
+                ),
             }));
             setResumeExtractMsg("✅ Resume parsed! Review and fill any missing fields.");
         } catch (err) {

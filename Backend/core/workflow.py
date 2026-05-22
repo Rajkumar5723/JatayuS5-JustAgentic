@@ -31,6 +31,7 @@ from core.models import (
 from core.s3_manager import get_s3_manager
 from core.evidence_storage import EvidenceStorageService, local_evidence_public_url
 from core.config import settings
+from core.profile_enrichment import normalize_eval_profiles
 
 
 UTC = timezone.utc
@@ -141,6 +142,36 @@ def evidence_url(storage: EvidenceStorageService | None, raw_key: str | None) ->
     if str(raw_key).startswith("local://"):
         return local_evidence_public_url(str(raw_key))
     return storage.generate_presigned_url(raw_key) if storage else None
+
+
+def media_payload_from_event(
+    storage: EvidenceStorageService | None,
+    raw_payload: dict[str, Any],
+    *,
+    storage_keys: tuple[str, ...],
+    inline_keys: tuple[str, ...],
+) -> dict[str, Any]:
+    for key in storage_keys:
+        raw_value = raw_payload.get(key)
+        url = evidence_url(storage, raw_value)
+        if url:
+            return {
+                "image_b64": url,
+                "url": url,
+                "storage_url": url,
+                "download_url": url,
+                "s3_key": raw_value,
+            }
+    for key in inline_keys:
+        raw_value = raw_payload.get(key)
+        if raw_value:
+            return {
+                "image_b64": raw_value,
+                "url": raw_value if str(raw_value).startswith(("http", "data:")) else "",
+                "storage_url": raw_value if str(raw_value).startswith(("http", "data:")) else "",
+                "download_url": raw_value if str(raw_value).startswith(("http", "data:")) else "",
+            }
+    return {}
 
 
 def serialize_application_documents(db: Session, application_id: int) -> list[dict[str, Any]]:
@@ -845,6 +876,7 @@ def collect_stage_evidence(db: Session, session_token: str | None) -> dict[str, 
     meet_snapshots = []
     device_info = []
     ai_alerts = []
+    proctoring_incident_entries = []
     for row in proctoring_rows:
         raw_payload = parse_json(row.evidence_json, {})
         payload = compact_workflow_payload(raw_payload)
@@ -856,27 +888,67 @@ def collect_stage_evidence(db: Session, session_token: str | None) -> dict[str, 
             "payload": payload,
         }
         suspicious_events.append(event)
-        face_image = evidence_url(storage, raw_payload.get("face_storage_key")) or raw_payload.get("face_b64")
-        screen_image = evidence_url(storage, raw_payload.get("screen_storage_key")) or raw_payload.get("screen_b64")
-        meet_image = evidence_url(storage, raw_payload.get("snapshot_storage_key")) or raw_payload.get("snapshot_b64")
-        if face_image:
+        face_media = media_payload_from_event(
+            storage,
+            raw_payload,
+            storage_keys=("face_storage_key", "webcam_storage_key", "image_storage_key"),
+            inline_keys=("face_b64", "webcam_b64", "image_b64"),
+        )
+        screen_media = media_payload_from_event(
+            storage,
+            raw_payload,
+            storage_keys=("screen_storage_key", "screen_image_key"),
+            inline_keys=("screen_b64", "screen_image_b64"),
+        )
+        meet_media = media_payload_from_event(
+            storage,
+            raw_payload,
+            storage_keys=("snapshot_storage_key", "meet_storage_key", "room_snapshot_key"),
+            inline_keys=("snapshot_b64", "meet_b64", "room_snapshot_b64"),
+        )
+        if face_media:
             webcam_snapshots.append({
                 "timestamp": dt_iso(row.created_at),
                 "event_type": row.event_type,
-                "image_b64": face_image,
+                **face_media,
                 "face_similarity": raw_payload.get("face_similarity"),
             })
-        if screen_image:
+        if screen_media:
             screen_snapshots.append({
                 "timestamp": dt_iso(row.created_at),
                 "event_type": row.event_type,
-                "image_b64": screen_image,
+                **screen_media,
             })
-        if meet_image:
+        if meet_media:
             meet_snapshots.append({
                 "timestamp": dt_iso(row.created_at),
                 "event_type": row.event_type,
-                "image_b64": meet_image,
+                **meet_media,
+            })
+        event_files = []
+        for source, media in (("webcam", face_media), ("screen", screen_media), ("live_snapshot", meet_media)):
+            if media:
+                event_files.append({
+                    "type": "photo",
+                    "mime_type": "image/jpeg",
+                    "source": source,
+                    **media,
+                })
+        if event_files and (
+            row.event_type in {"face_mismatch", "manual_flag", "meet_alert", "tab_hidden", "window_blur", "fullscreen_exit"}
+            or row.severity in {"high", "critical", "severe"}
+            or raw_payload.get("alert")
+        ):
+            proctoring_incident_entries.append({
+                "incident_id": None,
+                "question_id": raw_payload.get("question_id"),
+                "incident_type": row.event_type,
+                "severity": row.severity,
+                "confidence_score": raw_payload.get("confidence_score"),
+                "agent_name": raw_payload.get("agent_name") or "proctoring",
+                "reason_text": raw_payload.get("alert") or raw_payload.get("reason") or row.event_type,
+                "created_at": dt_iso(row.created_at),
+                "evidence_files": event_files,
             })
         if row.event_type in {"device_info", "device_fingerprint", "session_opened"}:
             device_info.append({
@@ -916,6 +988,8 @@ def collect_stage_evidence(db: Session, session_token: str | None) -> dict[str, 
                     "s3_key": evidence.s3_key,
                     "mime_type": evidence.mime_type,
                     "url": evidence_url(storage, evidence.s3_key),
+                    "storage_url": evidence_url(storage, evidence.s3_key),
+                    "download_url": evidence_url(storage, evidence.s3_key),
                 }
                 for room_frame, evidence in frames
             ],
@@ -944,11 +1018,16 @@ def collect_stage_evidence(db: Session, session_token: str | None) -> dict[str, 
                     "type": evidence.evidence_type,
                     "mime_type": evidence.mime_type,
                     "url": evidence_url(storage, evidence.s3_key),
+                    "storage_url": evidence_url(storage, evidence.s3_key),
+                    "download_url": evidence_url(storage, evidence.s3_key),
+                    "presigned_url": evidence_url(storage, evidence.s3_key),
                     "s3_key": evidence.s3_key,
                 }
                 for _, evidence in links
             ],
         })
+    if not incident_entries and proctoring_incident_entries:
+        incident_entries.extend(proctoring_incident_entries)
 
     webcam_preview, webcam_summary = recent_media_preview(webcam_snapshots)
     screen_preview, screen_summary = recent_media_preview(screen_snapshots)
@@ -1222,7 +1301,11 @@ def build_workflow_payload(db: Session, application: Application, job: Any) -> d
         })
 
     stages: list[dict[str, Any]] = []
-    eval_payload = parse_json(application.eval_data, {})
+    eval_payload = normalize_eval_profiles(
+        parse_json(application.eval_data, {}),
+        github_url=application.github_url,
+        leetcode_url=application.leetcode_url,
+    )
     recommendation = application.eval_recommendation or eval_payload.get("hiring_recommendation") or ""
     eval_score = None
     try:

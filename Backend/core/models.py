@@ -282,7 +282,7 @@ class EmailDeliveryLog(Base):
     subject              = Column(String, nullable=False)
     stage                = Column(String, nullable=True)
     status               = Column(String, nullable=False)
-    provider             = Column(String, default="smtp_ssl_gmail")
+    provider             = Column(String, default="brevo")
     error_message        = Column(Text, nullable=True)
     application_id       = Column(Integer, index=True, nullable=True)
     test_session_id      = Column(Integer, index=True, nullable=True)
