@@ -30,7 +30,12 @@ def fetch_github_light(github_url: str | None) -> dict[str, Any]:
     username = extract_username(r"github\.com/([a-zA-Z0-9-]+)", github_url)
     if not username:
         return {}
-    headers = {"Authorization": f"token {settings.GITHUB_TOKEN}"} if settings.GITHUB_TOKEN else {}
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "Hiresy-Candidate-Evaluator",
+    }
+    if settings.GITHUB_TOKEN:
+        headers["Authorization"] = f"token {settings.GITHUB_TOKEN}"
     try:
         profile_res = requests.get(f"https://api.github.com/users/{username}", headers=headers, timeout=8)
         repos_res = requests.get(
@@ -154,6 +159,62 @@ query getUserProfile($username: String!) {
         return {"username": username, "display_name": username, "total": 0, "easy": 0, "medium": 0, "hard": 0}
 
 
+def safe_int(value: Any) -> int:
+    try:
+        return int(float(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def github_raw_needs_refresh(raw: dict[str, Any]) -> bool:
+    if not raw.get("username"):
+        return True
+    numeric_signals = (
+        raw.get("public_repos"),
+        raw.get("total_repos"),
+        raw.get("total_stars"),
+        raw.get("total_forks"),
+        raw.get("followers"),
+    )
+    return (
+        not any(safe_int(value) for value in numeric_signals)
+        and not raw.get("top_repos")
+        and not raw.get("languages")
+    )
+
+
+def leetcode_raw_needs_refresh(raw: dict[str, Any]) -> bool:
+    if not raw.get("username"):
+        return True
+    numeric_signals = (
+        raw.get("total"),
+        raw.get("easy"),
+        raw.get("medium"),
+        raw.get("hard"),
+        raw.get("ranking"),
+        raw.get("active_days"),
+    )
+    return not any(safe_int(value) for value in numeric_signals if value is not None)
+
+
+def prefer_enriched_profile(current: dict[str, Any], fetched: dict[str, Any], *, kind: str) -> dict[str, Any]:
+    if not fetched:
+        return current
+    current = dict(current or {})
+    fetched = dict(fetched or {})
+    if kind == "github":
+        current_count = safe_int(current.get("public_repos") or current.get("total_repos"))
+        fetched_count = safe_int(fetched.get("public_repos") or fetched.get("total_repos"))
+        if fetched_count > current_count or fetched.get("top_repos") or fetched.get("languages"):
+            return {**current, **fetched}
+    if kind == "leetcode":
+        current_total = safe_int(current.get("total"))
+        fetched_total = safe_int(fetched.get("total"))
+        if fetched_total > current_total or fetched.get("ranking") or fetched.get("active_days"):
+            return {**current, **fetched}
+    return current or fetched
+
+
 def normalize_eval_profiles(
     eval_payload: dict[str, Any] | None,
     *,
@@ -169,13 +230,13 @@ def normalize_eval_profiles(
         payload["leetcode_url"] = leetcode_url
 
     github_raw = payload.get("github_raw") if isinstance(payload.get("github_raw"), dict) else {}
-    if github_url and not github_raw.get("username"):
-        github_raw = fetch_github_light(github_url)
+    if github_url and github_raw_needs_refresh(github_raw):
+        github_raw = prefer_enriched_profile(github_raw, fetch_github_light(github_url), kind="github")
     payload["github_raw"] = github_raw or {}
 
     leetcode_raw = payload.get("leetcode_raw") if isinstance(payload.get("leetcode_raw"), dict) else {}
-    if leetcode_url and not leetcode_raw.get("username"):
-        leetcode_raw = fetch_leetcode_light(leetcode_url)
+    if leetcode_url and leetcode_raw_needs_refresh(leetcode_raw):
+        leetcode_raw = prefer_enriched_profile(leetcode_raw, fetch_leetcode_light(leetcode_url), kind="leetcode")
     payload["leetcode_raw"] = leetcode_raw or {}
     payload.setdefault("component_scores", {})
     return payload

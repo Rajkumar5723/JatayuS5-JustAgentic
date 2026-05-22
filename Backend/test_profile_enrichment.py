@@ -45,3 +45,35 @@ def test_normalize_eval_profiles_ignores_empty_marker_urls(monkeypatch):
     assert payload["github_raw"] == {}
     assert payload["leetcode_raw"] == {}
     assert calls == {"github": 0, "leetcode": 0}
+
+
+def test_normalize_eval_profiles_refreshes_hollow_existing_raw(monkeypatch):
+    monkeypatch.setattr(
+        profile_enrichment,
+        "fetch_github_light",
+        lambda url: {
+            "username": "Rajkumar5723",
+            "public_repos": 42,
+            "total_repos": 42,
+            "languages": {"JavaScript": 2, "Python": 1},
+            "top_repos": [{"name": "Hiresy"}],
+        },
+    )
+    monkeypatch.setattr(
+        profile_enrichment,
+        "fetch_leetcode_light",
+        lambda url: {"username": "Rajkumar_57", "total": 112, "easy": 85, "medium": 25, "hard": 2},
+    )
+
+    payload = profile_enrichment.normalize_eval_profiles(
+        {
+            "github_raw": {"username": "Rajkumar5723", "public_repos": 0, "languages": {}},
+            "leetcode_raw": {"username": "Rajkumar_57", "total": 0, "easy": 0, "medium": 0, "hard": 0},
+        },
+        github_url="https://github.com/Rajkumar5723",
+        leetcode_url="https://leetcode.com/u/Rajkumar_57/",
+    )
+
+    assert payload["github_raw"]["public_repos"] == 42
+    assert payload["github_raw"]["top_repos"][0]["name"] == "Hiresy"
+    assert payload["leetcode_raw"]["total"] == 112

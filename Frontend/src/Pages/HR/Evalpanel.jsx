@@ -399,6 +399,8 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
 
     const langEntries = Object.entries(gh.languages || {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
     const totalLangs = langEntries.reduce((s, [, v]) => s + v, 0) || 1;
+    const githubRepoCount = Math.max(Number(gh.total_repos || 0), Number(gh.public_repos || 0));
+    const githubOriginalCount = Number(gh.repo_types?.original ?? githubRepoCount);
     const commitData = gh.commit_activity || Array.from({ length: 12 }, (_, i) => ({
         month: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][i], commits: 0
     }));
@@ -532,13 +534,13 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
                     <GlassCard className="gc-gh-stats" style={{ background: "linear-gradient(160deg, #0f0800 0%, #1a0a00 50%, #0d0d0d 100%)" }}>
                         
                         <p className="gc-eyebrow">Repository Overview</p>
-                        <div className="gc-bignum" style={{ color: "#ff4400" }}>{gh.total_repos || 0}</div>
+                        <div className="gc-bignum" style={{ color: "#ff4400" }}>{githubRepoCount}</div>
                         <p className="gc-bignum-sub">Total Repositories</p>
                         <div className="gc-stat-grid">
                             <div className="gc-stat"><span style={{ color: "#e89506", fontSize: 26, fontWeight: 900 }}>{gh.total_stars || 0}</span><span className="gc-stat-label"><br /> Stars</span></div>
                             <div className="gc-stat"><span style={{ color: "#2989ff", fontSize: 26, fontWeight: 900 }}>{gh.total_forks || 0}</span><span className="gc-stat-label">Forks</span></div>
                             <div className="gc-stat"><span style={{ color: "#7a4eff", fontSize: 26, fontWeight: 900 }}>{gh.followers || 0}</span><span className="gc-stat-label">Followers</span></div>
-                            <div className="gc-stat"><span style={{ color: "#739301", fontSize: 26, fontWeight: 900 }}>{gh.repo_types?.original || 0}</span><span className="gc-stat-label">Original</span></div>
+                            <div className="gc-stat"><span style={{ color: "#739301", fontSize: 26, fontWeight: 900 }}>{githubOriginalCount}</span><span className="gc-stat-label">Original</span></div>
                         </div>
                     </GlassCard>
 
