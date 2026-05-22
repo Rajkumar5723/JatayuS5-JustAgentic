@@ -690,7 +690,7 @@ def health():
         "service": "coding_test",
         "frontend_url": settings.public_frontend_url,
         "db_mode": settings.DATABASE_MODE,
-        "brevo": bool(settings.BREVO_API and settings.brevo_sender_email),
+        "brevo": bool(settings.BREVO_API),
         "email_provider": "brevo",
     }
 

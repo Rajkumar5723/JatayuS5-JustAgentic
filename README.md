@@ -49,7 +49,7 @@ The repo is a monorepo with two deploy roots:
    - `AWS_S3_BUCKET`
    - `S3_EVIDENCE_BUCKET`
    - `GROQ_API_KEY`
-   - `BREVO_API`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`
+   - `BREVO_API` for email delivery; `BREVO_SENDER_EMAIL` and `BREVO_SENDER_NAME` are optional sender overrides.
    - `JAAS_APP_ID`
    - `LI_CLIENT_ID`, `LI_CLIENT_SECRET`, `LI_REDIRECT_URI`, `LI_SCOPE`
    - `QR_JWT_SECRET_KEY`
@@ -290,8 +290,8 @@ Set these on every backend service:
 - `GROQ_MODEL_VISION`
 - `GROQ_MODEL_AUDIO`
 - `BREVO_API`
-- `BREVO_SENDER_EMAIL`
-- `BREVO_SENDER_NAME`
+- `BREVO_SENDER_EMAIL` (optional, defaults to `rkdevzone@gmail.com`)
+- `BREVO_SENDER_NAME` (optional, defaults to `Hiresy`)
 - `JAAS_APP_ID`
 - `LI_CLIENT_ID`
 - `LI_CLIENT_SECRET`

@@ -21,7 +21,7 @@ def test_send_email_uses_brevo_api(monkeypatch):
     monkeypatch.setattr(settings, "DISABLE_EMAIL_DELIVERY", False)
     monkeypatch.setattr(settings, "BREVO_API", "test-brevo-key")
     monkeypatch.setattr(settings, "BREVO_API_URL", "https://api.brevo.com/v3/smtp/email")
-    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "rkdevzone@11279504.brevosend.com")
+    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "rkdevzone@gmail.com")
     monkeypatch.setattr(settings, "BREVO_SENDER_NAME", "Hiresy")
     monkeypatch.setattr(email_utils.requests, "post", fake_post)
     monkeypatch.setattr(email_utils, "_log_email", lambda **kwargs: logs.append(kwargs))
@@ -39,7 +39,7 @@ def test_send_email_uses_brevo_api(monkeypatch):
     assert captured["headers"]["api-key"] == "test-brevo-key"
     assert captured["json"]["sender"] == {
         "name": "Hiresy",
-        "email": "rkdevzone@11279504.brevosend.com",
+        "email": "rkdevzone@gmail.com",
     }
     assert captured["json"]["to"] == [{"email": "candidate@example.com", "name": "Rajkumar G"}]
     assert captured["json"]["subject"] == "Assessment invite"
@@ -54,13 +54,13 @@ def test_send_email_fails_clearly_when_brevo_missing(monkeypatch):
 
     monkeypatch.setattr(settings, "DISABLE_EMAIL_DELIVERY", False)
     monkeypatch.setattr(settings, "BREVO_API", "")
-    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "")
+    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "rkdevzone@gmail.com")
     monkeypatch.setattr(email_utils, "_log_email", lambda **kwargs: logs.append(kwargs))
 
     assert email_utils.send_email("candidate@example.com", "Subject", "<p>Body</p>") is False
     assert logs[-1]["provider"] == "brevo"
     assert logs[-1]["status"] == "failed"
-    assert "brevo_not_configured" in logs[-1]["error_message"]
+    assert logs[-1]["error_message"] == "brevo_not_configured: missing BREVO_API"
 
 
 def test_send_email_respects_disable_delivery(monkeypatch):
@@ -73,7 +73,7 @@ def test_send_email_respects_disable_delivery(monkeypatch):
 
     monkeypatch.setattr(settings, "DISABLE_EMAIL_DELIVERY", True)
     monkeypatch.setattr(settings, "BREVO_API", "test-brevo-key")
-    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "rkdevzone@11279504.brevosend.com")
+    monkeypatch.setattr(settings, "BREVO_SENDER_EMAIL", "rkdevzone@gmail.com")
     monkeypatch.setattr(email_utils.requests, "post", fake_post)
     monkeypatch.setattr(email_utils, "_log_email", lambda **kwargs: logs.append(kwargs))
 

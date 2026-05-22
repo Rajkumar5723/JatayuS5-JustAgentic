@@ -111,7 +111,7 @@ def health():
         "status": "ok",
         "db_mode": settings.DATABASE_MODE,
         "db": settings.db_url.split("@")[-1] if "@" in settings.db_url else settings.db_url,
-        "brevo": bool(settings.BREVO_API and settings.brevo_sender_email),
+        "brevo": bool(settings.BREVO_API),
         "email_provider": "brevo",
         "groq": bool(settings.GROQ_API_KEY),
     }

@@ -42,7 +42,7 @@ envVarGroups:
       - key: BREVO_API
         sync: false
       - key: BREVO_SENDER_EMAIL
-        sync: false
+        value: rkdevzone@gmail.com
       - key: BREVO_SENDER_NAME
         value: Hiresy
       - key: QR_JWT_SECRET_KEY

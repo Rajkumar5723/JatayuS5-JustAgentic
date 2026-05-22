@@ -244,7 +244,7 @@ def _send_test_email(test: TestSession) -> bool:
 def health():
     return {
         "status": "ok", "model": settings.GROQ_MODEL,
-        "brevo": bool(settings.BREVO_API and settings.brevo_sender_email),
+        "brevo": bool(settings.BREVO_API),
         "email_provider": "brevo",
         "groq": bool(settings.GROQ_API_KEY),
         "frontend_url": settings.public_frontend_url,

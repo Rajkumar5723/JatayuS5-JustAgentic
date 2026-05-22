@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     DISABLE_EMAIL_DELIVERY: bool = False
     BREVO_API: str = ""
     BREVO_API_URL: str = "https://api.brevo.com/v3/smtp/email"
-    BREVO_SENDER_EMAIL: str = ""
+    BREVO_SENDER_EMAIL: str = "rkdevzone@gmail.com"
     BREVO_SENDER_NAME: str = "Hiresy"
 
     # ── App ───────────────────────────────────────────────────

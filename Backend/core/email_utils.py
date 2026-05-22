@@ -176,13 +176,8 @@ def send_email(
     brevo_api_key = (settings.BREVO_API or "").strip()
     sender_email = settings.brevo_sender_email
     sender_name = settings.brevo_sender_name or company
-    if not brevo_api_key or not sender_email:
-        missing = []
-        if not brevo_api_key:
-            missing.append("BREVO_API")
-        if not sender_email:
-            missing.append("BREVO_SENDER_EMAIL")
-        error_message = f"brevo_not_configured: missing {', '.join(missing)}"
+    if not brevo_api_key:
+        error_message = "brevo_not_configured: missing BREVO_API"
         logger.error("Email failed -> %s | %s | %s", to, subject, error_message)
         _log_email(
             to=to,

@@ -455,7 +455,7 @@ def health():
     return {
         "status": "ok",
         "groq": bool(settings.GROQ_API_KEY),
-        "brevo": bool(settings.BREVO_API and settings.brevo_sender_email),
+        "brevo": bool(settings.BREVO_API),
         "email_provider": "brevo",
     }
 

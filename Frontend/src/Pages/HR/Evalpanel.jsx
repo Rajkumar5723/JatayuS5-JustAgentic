@@ -198,7 +198,7 @@
 
 
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     FiGithub, FiCode, FiFileText, FiAlertTriangle,
     FiCheckCircle, FiXCircle, FiStar, FiGitBranch,
@@ -249,6 +249,68 @@ function withProtocol(value) {
     return /^https?:\/\//i.test(cleaned) ? cleaned : `https://${cleaned}`;
 }
 
+function githubRawLooksEmpty(raw) {
+    if (!raw?.username) return false;
+    return !Number(raw.public_repos || raw.total_repos || 0) && !Object.keys(raw.languages || {}).length;
+}
+
+async function fetchGithubFromBrowser(username) {
+    const [profileRes, reposRes, eventsRes] = await Promise.all([
+        fetch(`https://api.github.com/users/${username}`),
+        fetch(`https://api.github.com/users/${username}/repos?sort=pushed&per_page=100`),
+        fetch(`https://api.github.com/users/${username}/events?per_page=100`),
+    ]);
+    const profile = profileRes.ok ? await profileRes.json() : {};
+    const reposPayload = reposRes.ok ? await reposRes.json() : [];
+    const eventsPayload = eventsRes.ok ? await eventsRes.json() : [];
+    const repos = Array.isArray(reposPayload) ? reposPayload : [];
+    const languages = {};
+    let totalStars = 0;
+    let totalForks = 0;
+    repos.forEach((repo) => {
+        const lang = repo.language || "Other";
+        languages[lang] = (languages[lang] || 0) + 1;
+        totalStars += Number(repo.stargazers_count || 0);
+        totalForks += Number(repo.forks_count || 0);
+    });
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const commitsByMonth = Object.fromEntries(months.map((month) => [month, 0]));
+    if (Array.isArray(eventsPayload)) {
+        eventsPayload.forEach((event) => {
+            if (event.type !== "PushEvent" || !event.created_at) return;
+            const month = new Date(event.created_at).toLocaleString("en-US", { month: "short" });
+            commitsByMonth[month] = (commitsByMonth[month] || 0) + Number(event.payload?.size || 1);
+        });
+    }
+    return {
+        username,
+        display_name: profile.name || profile.login || username,
+        public_repos: Number(profile.public_repos || repos.length || 0),
+        total_repos: repos.length || Number(profile.public_repos || 0),
+        total_stars: totalStars,
+        total_forks: totalForks,
+        followers: Number(profile.followers || 0),
+        following: Number(profile.following || 0),
+        languages,
+        commit_activity: months.map((month) => ({ month, commits: commitsByMonth[month] || 0 })),
+        repo_types: {
+            original: repos.filter((repo) => !repo.fork).length,
+            forked: repos.filter((repo) => repo.fork).length,
+        },
+        top_repos: [...repos]
+            .sort((a, b) => Number(b.stargazers_count || 0) - Number(a.stargazers_count || 0))
+            .slice(0, 8)
+            .map((repo) => ({
+                name: repo.name,
+                stars: Number(repo.stargazers_count || 0),
+                forks: Number(repo.forks_count || 0),
+                language: repo.language,
+                description: repo.description || "",
+                size_kb: Number(repo.size || 0),
+            })),
+    };
+}
+
 /* ── Score Ring (Recharts RadialBar) ── */
 function ScoreArc({ value }) {
     const color = scoreColor(value);
@@ -287,6 +349,31 @@ function GlassCard({ children, className = "", style = {}, glow = "" }) {
 export default function EvalPanel({ evalData, evalSummary, candidate }) {
     const [tab, setTab] = useState("github");
     const [showSummary, setShowSummary] = useState(false);
+    const [clientGithubRaw, setClientGithubRaw] = useState(null);
+
+    useEffect(() => {
+        if (!evalData || typeof fetch !== "function") return undefined;
+        let evForFetch = {};
+        try {
+            evForFetch = typeof evalData === "string" ? JSON.parse(evalData) : evalData;
+        } catch {
+            return undefined;
+        }
+        const candidateUrl = withProtocol(candidate?.github_url || evForFetch.github_url);
+        const username = (evForFetch.github_raw || {}).username || usernameFromUrl(/github\.com\/([a-zA-Z0-9-]+)/i, candidateUrl);
+        if (!username || !githubRawLooksEmpty({ username, ...(evForFetch.github_raw || {}) })) return undefined;
+        let cancelled = false;
+        fetchGithubFromBrowser(username)
+            .then((data) => {
+                if (!cancelled) setClientGithubRaw(data);
+            })
+            .catch(() => {
+                if (!cancelled) setClientGithubRaw(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [candidate?.github_url, evalData]);
 
     if (!evalData) return (
         <div className="ep-empty"><FiActivity size={32} /><p>No evaluation data available</p></div>
@@ -300,7 +387,7 @@ export default function EvalPanel({ evalData, evalSummary, candidate }) {
     const candidateLeetcodeUrl = withProtocol(candidate?.leetcode_url || ev.leetcode_url);
     const ghUsername = (ev.github_raw || {}).username || usernameFromUrl(/github\.com\/([a-zA-Z0-9-]+)/i, candidateGithubUrl);
     const lcUsername = (ev.leetcode_raw || {}).username || usernameFromUrl(/leetcode\.com\/(?:u\/)?([a-zA-Z0-9_-]+)/i, candidateLeetcodeUrl);
-    const gh = { username: ghUsername, ...(ev.github_raw || {}) };
+    const gh = { username: ghUsername, ...(ev.github_raw || {}), ...(clientGithubRaw || {}) };
     const lc = { username: lcUsername, ...(ev.leetcode_raw || {}) };
     const hasGithubProfile = Boolean(gh.username || candidateGithubUrl);
     const hasLeetcodeProfile = Boolean(lc.username || candidateLeetcodeUrl);
