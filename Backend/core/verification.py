@@ -53,6 +53,23 @@ def _data_url_from_bytes(mime_type: str, payload: bytes) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
+def _document_bytes(doc: dict[str, Any]) -> bytes:
+    payload = doc.get("payload")
+    if isinstance(payload, bytes):
+        return payload
+    if isinstance(payload, bytearray):
+        return bytes(payload)
+    return _data_url_to_bytes(doc.get("content") or "")
+
+
+def _document_data_url(doc: dict[str, Any], mime_type: str) -> str:
+    content = doc.get("content")
+    if isinstance(content, str) and content:
+        return content
+    payload = _document_bytes(doc)
+    return _data_url_from_bytes(mime_type, payload) if payload else ""
+
+
 def _combined_ocr_text(documents: list[VerificationDocument]) -> str:
     return "\n".join((doc.ocr_text or "").strip() for doc in documents if (doc.ocr_text or "").strip())
 
@@ -158,9 +175,9 @@ def send_bgv_ready_email(case: VerificationCase) -> bool:
 async def submit_verification_case(db, case: VerificationCase, application: Application, payload: dict[str, Any]) -> VerificationCase:
     uploaded_docs = payload.get("documents") or {}
     selfie_doc = uploaded_docs.get("selfie") or {}
-    selfie_content = selfie_doc.get("content") or ""
-    selfie_bytes = _data_url_to_bytes(selfie_content)
     selfie_mime = selfie_doc.get("mime_type") or "image/jpeg"
+    selfie_bytes = _document_bytes(selfie_doc)
+    selfie_content = _document_data_url(selfie_doc, selfie_mime) if selfie_bytes else ""
 
     existing_docs = (
         db.query(VerificationDocument)
@@ -204,8 +221,9 @@ async def submit_verification_case(db, case: VerificationCase, application: Appl
 
         filename = doc.get("filename") or f"{doc_key}.bin"
         mime_type = doc.get("mime_type") or "application/octet-stream"
-        content = doc.get("content") or ""
-        file_bytes = _data_url_to_bytes(content)
+        file_bytes = _document_bytes(doc)
+        if not file_bytes:
+            continue
         storage_key, file_size = await store_document_bytes(
             db,
             session_token=case.token,
@@ -214,7 +232,8 @@ async def submit_verification_case(db, case: VerificationCase, application: Appl
             mime_type=mime_type,
             payload=file_bytes,
         )
-        ocr_result = extract_document_text(filename, mime_type, file_bytes)
+        # Keep candidate submission responsive; full OCR can be reviewed/re-run later.
+        ocr_result = extract_document_text(filename, mime_type, file_bytes, allow_ocr=False)
         verification_document = VerificationDocument(
             verification_case_id=case.id,
             document_type=doc_key,
@@ -310,7 +329,7 @@ async def submit_verification_case(db, case: VerificationCase, application: Appl
         for doc_key in FACE_DOC_KEYS:
             doc = uploaded_docs.get(doc_key) or {}
             mime_type = str(doc.get("mime_type") or "")
-            content = doc.get("content") or ""
+            content = _document_data_url(doc, mime_type)
             if content and mime_type.startswith("image/"):
                 document_face_similarity[doc_key] = image_similarity(
                     selfie_content,

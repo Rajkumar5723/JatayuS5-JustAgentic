@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -13,6 +12,7 @@ from core.models import Application, VerificationCase, VerificationDocument
 from core.verification import review_verification_case, submit_verification_case
 
 router = APIRouter(tags=["verification"])
+MAX_VERIFICATION_FILE_BYTES = 8 * 1024 * 1024
 
 
 class VerificationSubmitRequest(BaseModel):
@@ -166,28 +166,30 @@ async def submit_case(
         payload = await upload.read()
         if not payload:
             continue
+        if len(payload) > MAX_VERIFICATION_FILE_BYTES:
+            raise HTTPException(
+                413,
+                f"{doc_key.replace('_', ' ').title()} is too large. Please upload a file under 8 MB.",
+            )
         definition = document_definition(doc_key)
         documents[doc_key] = {
             "filename": upload.filename or f"{doc_key}.bin",
             "mime_type": upload.content_type or "application/octet-stream",
-            "content": (
-                f"data:{upload.content_type or 'application/octet-stream'};base64,"
-                f"{base64.b64encode(payload).decode('ascii')}"
-            ),
+            "payload": payload,
             "required": bool(definition["required"]),
             "category": definition["category"],
         }
 
-    payload = VerificationSubmitRequest(
-        full_name=full_name,
-        address=address,
-        city=city,
-        state=state,
-        pincode=pincode,
-        pan_number=pan_number,
-        aadhaar_number=aadhaar_number,
-        documents=documents,
-    ).model_dump()
+    payload = {
+        "full_name": full_name,
+        "address": address,
+        "city": city,
+        "state": state,
+        "pincode": pincode,
+        "pan_number": pan_number,
+        "aadhaar_number": aadhaar_number,
+        "documents": documents,
+    }
     case = await submit_verification_case(db, case, application, payload)
     db.refresh(case)
     return _serialize_case(case)

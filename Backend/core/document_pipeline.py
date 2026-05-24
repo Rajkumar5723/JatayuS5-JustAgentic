@@ -185,7 +185,7 @@ def extract_structured_fields(text: str) -> dict[str, Any]:
     }
 
 
-def extract_document_text(filename: str, mime_type: str, payload: bytes) -> dict[str, Any]:
+def extract_document_text(filename: str, mime_type: str, payload: bytes, *, allow_ocr: bool = True) -> dict[str, Any]:
     name = (filename or "").lower()
     mime = (mime_type or "").lower()
     status = "not_supported"
@@ -197,7 +197,7 @@ def extract_document_text(filename: str, mime_type: str, payload: bytes) -> dict
         if text:
             status = "embedded_text"
             method = "pdfplumber"
-        else:
+        elif allow_ocr:
             text = _ocr_pdf_images(payload)
             if text:
                 status = "ocr_complete"
@@ -205,14 +205,21 @@ def extract_document_text(filename: str, mime_type: str, payload: bytes) -> dict
             else:
                 status = "ocr_runtime_missing" if (fitz is None or pytesseract is None) else "ocr_empty"
                 method = "pymupdf+pytesseract" if fitz and pytesseract else "missing_runtime"
-    elif any(ext in name for ext in [".png", ".jpg", ".jpeg", ".webp"]) or mime.startswith("image/"):
-        text = _ocr_image_bytes(payload)
-        if text:
-            status = "ocr_complete"
-            method = "pytesseract"
         else:
-            status = "ocr_runtime_missing" if pytesseract is None else "ocr_empty"
-            method = "pytesseract" if pytesseract else "missing_runtime"
+            status = "ocr_deferred"
+            method = "deferred"
+    elif any(ext in name for ext in [".png", ".jpg", ".jpeg", ".webp"]) or mime.startswith("image/"):
+        if allow_ocr:
+            text = _ocr_image_bytes(payload)
+            if text:
+                status = "ocr_complete"
+                method = "pytesseract"
+            else:
+                status = "ocr_runtime_missing" if pytesseract is None else "ocr_empty"
+                method = "pytesseract" if pytesseract else "missing_runtime"
+        else:
+            status = "ocr_deferred"
+            method = "deferred"
 
     fields = extract_structured_fields(text)
     return {

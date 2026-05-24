@@ -114,12 +114,26 @@ export default function VerificationPage() {
                 method: "POST",
                 body: formData,
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Submission failed");
+            const raw = await res.text();
+            let data = {};
+            if (raw) {
+                try {
+                    data = JSON.parse(raw);
+                } catch {
+                    data = { detail: raw };
+                }
+            }
+            if (!res.ok) {
+                const detail = data.detail || data.message || "Submission failed";
+                throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+            }
             setCaseData(data);
             setMessage("Verification submitted. Our team will review it now.");
         } catch (err) {
-            setMessage(err.message || "Submission failed.");
+            const msg = err.message || "Submission failed.";
+            setMessage(msg.includes("Bad Gateway") || msg.includes("502")
+                ? "Server was busy while uploading documents. Please retry in a minute; already uploaded files are saved."
+                : msg);
         } finally {
             setSaving(false);
         }
