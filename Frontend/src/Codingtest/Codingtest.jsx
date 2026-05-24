@@ -1258,6 +1258,81 @@ const LANGS = [
 
 const TERM_H = 290;
 
+async function fetchJson(url, options = {}) {
+    const res = await fetch(url, options);
+    const raw = await res.text();
+    let data = {};
+    if (raw) {
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            data = { raw };
+        }
+    }
+    if (!res.ok) {
+        throw new Error(data.detail || data.message || data.raw || `Request failed (${res.status}).`);
+    }
+    return data;
+}
+
+function printable(value) {
+    if (value == null || value === "") return "—";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return String(value);
+    }
+}
+
+function normalizeConstraints(value) {
+    if (Array.isArray(value)) return value.map(printable).filter(Boolean);
+    if (typeof value === "string") {
+        return value
+            .split(/\n|;/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+    return value ? [printable(value)] : [];
+}
+
+function normalizeStarterCode(value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+        return Object.fromEntries(LANGS.map((lang) => [lang.id, value]));
+    }
+    return {};
+}
+
+function normalizeProblem(problem = {}, index = 0) {
+    const examples = Array.isArray(problem.examples) ? problem.examples : [];
+    return {
+        ...problem,
+        title: problem.title || `Problem ${index + 1}`,
+        difficulty: String(problem.difficulty || "medium").toLowerCase(),
+        description: printable(problem.description || "Solve the problem described by the prompt."),
+        constraints: normalizeConstraints(problem.constraints),
+        examples: examples.map((example) => ({
+            ...example,
+            input: printable(example?.input),
+            output: printable(example?.output),
+            explanation: example?.explanation ? printable(example.explanation) : "",
+        })),
+        starter_code: normalizeStarterCode(problem.starter_code),
+    };
+}
+
+function normalizeSessionPayload(data = {}) {
+    const problems = Array.isArray(data.problems) ? data.problems.map(normalizeProblem) : [];
+    return {
+        ...data,
+        duration_mins: Number(data.duration_mins || 60),
+        problem_count: data.problem_count || problems.length,
+        problems,
+    };
+}
+
 export default function CodingTest() {
     const { token } = useParams();
     const [phase, setPhase] = useState("loading");
@@ -1294,15 +1369,71 @@ export default function CodingTest() {
     const [caseResults, setCaseResults] = useState({});
     const [activeCase, setActiveCase] = useState(0);
 
+    const resetWorkspaceState = () => {
+        setTermOpen(false);
+        setTermTab("cases");
+        setCustomInput("");
+        setRunning(false);
+        setStdinResult(null);
+        setCaseResults({});
+        setActiveCase(0);
+        testStartedAtRef.current = new Date();
+        activeProblemEnteredAtRef.current = Date.now();
+        problemStartedAtRef.current = { 0: Date.now() };
+        problemTimeSpentRef.current = {};
+        problemFirstInteractionRef.current = {};
+        problemMetricsRef.current = {};
+        languageHistoryRef.current = {};
+        problemRunHistoryRef.current = {};
+    };
+
+    const initialTimeLeft = (activeSession) => {
+        const durationSeconds = Number(activeSession?.duration_mins || 60) * 60;
+        const startedAt = Date.parse(activeSession?.started_at || "");
+        if (!Number.isFinite(startedAt)) return durationSeconds;
+        const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+        return Math.max(0, durationSeconds - elapsed);
+    };
+
+    const openWorkspace = (rawSession) => {
+        const activeSession = normalizeSessionPayload(rawSession);
+        setSession(activeSession);
+        const init = {};
+        const languageDefaults = {};
+        (activeSession.problems || []).forEach((p, pi) => {
+            LANGS.forEach((l) => {
+                init[`${pi}-${l.id}`] =
+                    p.starter_code?.[l.id] || `// Write your ${l.label} solution here\n`;
+            });
+            languageDefaults[pi] = "python";
+        });
+        setCodes(init);
+        codesRef.current = init;
+        setProblemLanguages(languageDefaults);
+        problemLanguagesRef.current = languageDefaults;
+        setActiveProblem(0);
+        activeProblemRef.current = 0;
+        setLang("python");
+        resetWorkspaceState();
+        noteLanguageChoice(0, "python");
+        setTimeLeft(initialTimeLeft(activeSession));
+        setPhase("test");
+    };
+
     // Session load
     useEffect(() => {
-        fetch(`${API}/coding/${token}`)
-            .then((r) => r.json())
+        fetchJson(`${API}/coding/${token}`)
             .then((data) => {
-                setRoomScanReady(false);
-                setSession(data);
-                if (data.status === "submitted") setPhase("result");
-                else setPhase("intro");
+                const normalized = normalizeSessionPayload(data);
+                setRoomScanReady(!normalized.room_scan_required);
+                setSession(normalized);
+                if (normalized.status === "submitted") {
+                    setPhase("result");
+                } else if (normalized.status === "started" && normalized.problems?.length) {
+                    openWorkspace(normalized);
+                } else {
+                    setPhase("intro");
+                }
             })
             .catch(() => setPhase("error"));
     }, [token]);
@@ -1399,39 +1530,11 @@ export default function CodingTest() {
 
     const startTest = async () => {
         if (!roomScanReady) return;
-        const startRes = await fetch(`${API}/coding/${token}/start`, { method: "POST" });
-        const started = await startRes.json();
+        const started = await fetchJson(`${API}/coding/${token}/start`, { method: "POST" });
         const activeSession = started?.problems?.length
             ? started
-            : await fetch(`${API}/coding/${token}`).then((r) => r.json());
-        setSession(activeSession);
-        const init = {};
-        const languageDefaults = {};
-        (activeSession.problems || []).forEach((p, pi) => {
-            LANGS.forEach((l) => {
-                init[`${pi}-${l.id}`] =
-                    p.starter_code?.[l.id] || `// Write your ${l.label} solution here\n`;
-            });
-            languageDefaults[pi] = "python";
-        });
-        setCodes(init);
-        codesRef.current = init;
-        setProblemLanguages(languageDefaults);
-        problemLanguagesRef.current = languageDefaults;
-        setActiveProblem(0);
-        activeProblemRef.current = 0;
-        setLang("python");
-        testStartedAtRef.current = new Date();
-        activeProblemEnteredAtRef.current = Date.now();
-        problemStartedAtRef.current = { 0: Date.now() };
-        problemTimeSpentRef.current = {};
-        problemFirstInteractionRef.current = {};
-        problemMetricsRef.current = {};
-        languageHistoryRef.current = {};
-        problemRunHistoryRef.current = {};
-        noteLanguageChoice(0, "python");
-        setTimeLeft(activeSession.duration_mins * 60);
-        setPhase("test");
+            : await fetchJson(`${API}/coding/${token}`);
+        openWorkspace(activeSession);
     };
 
     useEffect(() => {
